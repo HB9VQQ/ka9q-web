@@ -1,121 +1,88 @@
-# ka9q-web
+# ka9q-web — HB9VQQ Fork
 
-A web interface for ka9q-radio by John Melton G0ORX
+**Fork by:** Roland Gafner, HB9VQQ  
+**Upstream:** https://github.com/scottnewell/ka9q-web  
+**Live instances:** http://rx888.hb9vqq.ch:8081 · http://rx888.hb9vqq.ch:8082
 
+---
 
-## How to build ka9q-web
+## What's new in this fork
 
-### 1 - Build and install ka9q-radio
+### Dark theme UI (`radio.html`)
+- Full dark theme with teal/amber/violet accent colors and scanline texture
+- Solar indices bar: SFI, A, K, Kp, SWS, DRAP — live data from dxmap.hb9vqq.ch
+- UTC clock in header
+- Band selector with Amateur / Broadcast / Utility categories
+- Mode auto-switching by frequency (LSB below 10 MHz, USB above)
+- Improved Options dialog styling and positioning
+- Frequency input Enter-to-tune support
+- Resizable spectrum/waterfall with live DX overlay tracking
 
-- `git clone https://github.com/ka9q/ka9q-radio.git`
-- detailed instructions are here: https://github.com/ka9q/ka9q-radio/blob/main/docs/INSTALL.md
+### DX cluster spot overlay (`dx-cluster.js`)
+- Live DX cluster spots overlaid on the spectrum as vertical dashed lines
+- Callsign labels with ◇ prefix, color-coded by mode:
+  - CW: cyan · SSB: yellow · FT8/FT4: magenta · RTTY: orange
+- Age fade over configurable window (default 30 min)
+- Row staggering for overlapping spots
+- Downward arrow at spectrum/waterfall boundary
+- Click-to-tune on spot frequency
+- Mode filter (ALL / CW / SSB / FT8 / FT4 / RTTY)
+- Spot count display
+- Reconnecting WebSocket with exponential backoff
 
+### DX cluster bridge (`dx-cluster-bridge.py`)
+- Python asyncio bridge: DX Spider telnet → WebSocket JSON
+- Connects to configurable DX cluster (default: dxcluster.hb9vqq.ch:7300)
+- Serves spots as JSON on ws://host:9373
+- In-memory spot cache with age pruning
+- FT8/FT4 mode inference from frequency windows
+- Systemd service included (`dx-cluster-bridge.service`)
 
-### 2 - Install the prerequisites for the Onion framework: GnuTLS and libgcrypto
+### Spectrum fixes (`spectrum.js`)
+- dBm axis labels corrected (negative sign)
 
-The Onion framework requires GnuTLS and libgcrypto to compute the SHA1 checksum required by WebSockets.
-They can be installed as follows:
+### radio.js patches
+- `-n` argument underscores display as spaces in heading and tab title
 
-- on Ubuntu 22.04 (Jammy Jellyfish) and Ubuntu 24.04 (Noble Numbat):
-```
-sudo apt install libgnutls28-dev libgcrypt20-dev
-```
+---
 
-- on Debian Stable (12, bookworm)  and similar Linux distributions:
-```
-sudo apt install libgnutls28-dev libgcrypt-dev
-```
+## Deployment
 
-- on RedHat, CentOS, Fedora and similar Linux distributions:
-```
-sudo dnf install gnutls-devel libgcrypt-devel
-```
+### Requirements
+- Python 3.10+: `sudo apt install python3-websockets`
+- All other dependencies unchanged from upstream
 
+### Files
+| File | Location |
+|------|----------|
+| `html/radio.html` | `/usr/local/share/ka9q-web/html/` |
+| `html/radio.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/dx-cluster.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/spectrum.js` | `/usr/local/share/ka9q-web/html/` |
+| `dx-cluster-bridge.py` | `/usr/local/bin/` |
+| `dx-cluster-bridge.service` | `/etc/systemd/system/` |
 
-### 3 - Build and install the Onion framework
-
-The Orion framework includes a lot of dependencies (like sqlite3, redis, etc) that are not needed just to run ka9q-web. The instructions below build the Onion framework with all the dependencies. See section 3A for instructions to build a lighter version of the Onion framework with only the few necessary dependencies.
-
-```
-git clone https://github.com/davidmoreno/onion
-cd onion
-mkdir build
-cd build
-cmake ..
-```
-
-Before going ahead with the next steps, do make sure that the output from 'cmake' contains the line:
-> -- SSL support is compiled in.
-
-If you don't see it, please review the instructions about the prerequisites for the Onion framework in the previous section.
-
-```
-make
-sudo make install
-sudo ldconfig
-```
-
-### 3A - Build and install a light version of the Onion framework
-
-These commands are almost identical to the ones in the section above except that all the unused features of the Onion framework are disabled to limit the number of dependencies and other packages.
-
-```
-git clone https://github.com/davidmoreno/onion
-cd onion
-mkdir build
-cd build
-cmake -DONION_USE_PAM=false -DONION_USE_PNG=false -DONION_USE_JPEG=false -DONION_USE_XML2=false -DONION_USE_SYSTEMD=false -DONION_USE_SQLITE3=false -DONION_USE_REDIS=false -DONION_USE_GC=false -DONION_USE_TESTS=false -DONION_EXAMPLES=false -DONION_USE_BINDINGS_CPP=false ..
-```
-
-Before going ahead with the next steps, do make sure that the output from 'cmake' contains the line:
-> -- SSL support is compiled in.
-
-If you don't see it, please review the instructions about the prerequisites for the Onion framework in the previous section.
-
-```
-make
-sudo make install
-sudo ldconfig
+### Bridge service
+```bash
+sudo cp dx-cluster-bridge.py /usr/local/bin/
+sudo chmod +x /usr/local/bin/dx-cluster-bridge.py
+sudo cp dx-cluster-bridge.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now dx-cluster-bridge
+sudo ufw allow 9373/tcp comment "DX cluster WS bridge"
 ```
 
-### 4 - Build and install ka9q-web
-
-- edit the first line of `Makefile` to point to the directory where you built ka9q-radio
-- run:
+### Bridge options
 ```
-make
-sudo make install
-sudo make install-config    (it will install rx888-web.conf in /etc/radio)
-```
-
-
-## How to run ka9q-web
-
-1. make sure ka9q-radio is running using the configuration rx888-web:
-```
-sudo systemctl start radiod@rx888-web
-systemctl status radiod@rx888-web
-```
-Address any problem with radiod before going to the next step
-
-2. start ka9q-web
-```
-ka9q-web
+--cluster-host   DX Spider hostname  (default: dxcluster.hb9vqq.ch)
+--cluster-port   DX Spider port      (default: 7300)
+--callsign       Login callsign      (default: HB9CU-10)
+--ws-port        WebSocket port      (default: 9373)
+--max-age        Spot max age (min)  (default: 30)
 ```
 
-Finally open a browser and connect locally to http://localhost:8081 , or from a remote browser to http://<your computer name/IP>:8081
+---
 
-NOTE: to start ka9q-web on a different ka9q-radio control address, the command line option is '-m', for instance:
-```
-ka9q-web -m hf.local
-```
-
-
-## References
-
-- [John Melton G0ORX fork of ka9q-radio](https://github.com/g0orx/ka9q-radio)
-- [Phil Karn KA9Q ka9q-radio](https://github.com/ka9q/ka9q-radio)
-
-## Copyright
-
-(C) 2023-2024 John Melton G0ORX - Licensed under the GNU GPL V3 (see [LICENSE](LICENSE))
+## Known issues / TODO
+- Cosmetic polish on controls strip
+- GitHub Actions CI not yet configured for this fork

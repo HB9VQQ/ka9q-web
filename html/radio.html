@@ -647,35 +647,7 @@ input[type=range]::-webkit-slider-thumb {
     <span class="spot-badge" id="dx-count" title="Spots on current span">0</span>
   </div>
 
-  <!-- Cluster selector -->
-  <div class="dxg">
-    <span class="dxg-lbl">Cluster</span>
-    <select class="cluster-sel">
-      <optgroup label="— Europe —">
-        <option selected>G6NHU-2 · dxspider.co.uk:7300</option>
-        <option>HB9VQQ · dxcluster.hb9vqq.ch:7300</option>
-        <option>RW3XA · dx.obninsk.org:41112</option>
-      </optgroup>
-      <optgroup label="— North America —">
-        <option>VE7CC · ve7cc.net:7300</option>
-        <option>W3LPL · w3lpl.net:7373</option>
-        <option>W9PA · dxc.w9pa.net:7373</option>
-        <option>WB3FFV · dxc.wb3ffv.us:7300</option>
-        <option>NC7J · dxc.nc7j.com:7373</option>
-        <option>K1TTT · k1ttt.net:7373</option>
-      </optgroup>
-      <optgroup label="— Asia/Pacific —">
-        <option>6L0NJ · dxc.dx.or.kr:7300</option>
-      </optgroup>
-    </select>
-    <button class="icon-btn" title="Reconnect">↺</button>
-  </div>
 
-  <!-- Callsign -->
-  <div class="dxg">
-    <span class="dxg-lbl">Callsign</span>
-    <input type="text" class="call-inp" value="HB9VQQ" maxlength="12" placeholder="CALL" title="Your callsign — used for cluster login">
-  </div>
 
   <!-- Filters -->
   <div class="dxg">
@@ -1287,6 +1259,7 @@ function setSolPill(label, value, cssClass) {
   window._dxOverlay = dxOverlay;
 
   dxCluster.onUpdate = () => dxOverlay.draw();
+  dxCluster.connect();
   // Redraw every 60 s to age-fade spots even when no new spots arrive
   setInterval(() => dxOverlay.draw(), 60000);
 

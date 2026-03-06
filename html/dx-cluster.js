@@ -108,6 +108,7 @@ window.DXOverlay = class DXOverlay {
     const vis = [];
     for (const spot of this._cluster._spots.values()) {
       if (this.modeFilter !== 'ALL' && spot.mode !== this.modeFilter) continue;
+      if (this._cluster.spotterRegion !== 'All' && spot._continent !== this._cluster.spotterRegion) continue;
       const x = this.freqToX(spot.frequency * 1000);
       if (x < 0 || x > canvas.width) continue;
       vis.push({ spot, x });

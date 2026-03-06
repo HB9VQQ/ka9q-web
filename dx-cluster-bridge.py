@@ -95,7 +95,7 @@ def infer_mode(freq_khz: float, comment: str) -> str:
 # ---------------------------------------------------------------------------
 # Spot parsing
 # ---------------------------------------------------------------------------
-def parse_spot(m: re.Match):
+def parse_spot(m: re.Match) -> dict | None:
     """Convert DX_RE match to spot dict. Returns None if required fields missing."""
     try:
         spotter, freq_str, dx_call, comment, time_z = m.group(1, 2, 3, 4, 5)

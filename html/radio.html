@@ -1279,7 +1279,7 @@ function setSolPill(label, value, cssClass) {
   }
 
   const dxCluster = new DXCluster(
-    (document.querySelector('.bridge-inp') || {value: ''}).value || 'ws://' + window.location.hostname + ':9373',
+    (document.querySelector('.bridge-inp') || {value: ''}).value || 'ws://dxmap.hb9vqq.ch:9373',
     30
   );
   dxCanvas = document.getElementById('dx-overlay');
@@ -1352,7 +1352,7 @@ function setSolPill(label, value, cssClass) {
   const ageSelect  = document.querySelector('.dxg .sel:nth-of-type(1)');
   const modeSelect = document.querySelector('.dxg .sel:nth-of-type(2)');
   const bridgeInp = document.querySelector('.bridge-inp');
-  if (bridgeInp && !bridgeInp.value) bridgeInp.value = 'ws://' + window.location.hostname + ':9373';
+  if (bridgeInp && !bridgeInp.value) bridgeInp.value = 'ws://dxmap.hb9vqq.ch:9373';
   const applyBtn   = document.querySelector('.bridge-inp + .icon-btn');
 
   if (ageSelect) ageSelect.addEventListener('change', () => {

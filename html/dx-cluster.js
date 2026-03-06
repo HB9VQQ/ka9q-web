@@ -1,7 +1,24 @@
+
+window._spotterContinent = function(call) {
+  if (!call) return '?';
+  const c = call.toUpperCase();
+  if (/^(W|K|N|AA|AB|AC|AD|AE|AF|AG|AH|AI|AJ|AK|AL|WA|WB|WC|WD|WE|WF|WG|WH|WI|WJ|WK|WL|WM|WN|WO|WP|WQ|WR|WS|WT|WU|WV|WW|WX|WY|WZ|KA|KB|KC|KD|KE|KF|KG|KH|KI|KJ|KK|KL|KM|KN|KO|KP|KQ|KR|KS|KT|KU|KV|KW|KX|KY|KZ|NA|NB|NC|ND|NE|NF|NG|NH|NI|NJ|NK|NL|NM|NN|NO|NP|NQ|NR|NS|NT|NU|NV|NW|NX|NY|NZ)[0-9]/.test(c)) return 'NA';
+  if (/^(VE|VA|VY|VO)/.test(c)) return 'NA';
+  if (/^(XE|XF)/.test(c)) return 'NA';
+  if (/^(TG|YN|TI|HR|HP|HH|HI|J3|J6|J7|J8|V2|V4|ZF|CO|CM)/.test(c)) return 'NA';
+  if (/^(PY|PP|PQ|PR|PS|PT|PU|PV|PW|ZV|ZW|ZX|ZY|ZZ|LU|LW|CE|HC|HJ|HK|CP|OA|OB|OC|YV|YW|CX|ZP|8R|9Y)/.test(c)) return 'SA';
+  const m2 = c.match(/^(?:UA|RA|U[A-Z])(\d)/);
+  if (m2) { const n=parseInt(m2[1]); return (n===0||n===9)?'AS':'EU'; }
+  if (/^(G|M|2E|2I|2J|2M|2W|GD|GI|GJ|GM|GU|GW|F|TM|DL|DA|DB|DC|DD|DE|DF|DG|DH|DJ|DK|DM|DN|DO|DP|DQ|DR|I|IK|IZ|IW|IU|IS|PA|PB|PC|PD|PE|PF|PG|PH|PI|SP|SQ|SR|OK|OL|OM|OE|HB|HB0|ON|OO|OR|OZ|SM|SA|SB|SC|SD|SE|SF|SG|SH|SI|SJ|SK|SL|OH|OF|OG|ES|YL|LY|LA|LB|LC|LD|LE|LF|LG|LH|LJ|LK|TF|EI|EJ|EA|EB|EC|ED|EE|EF|EG|EH|CT|CQ|CR|CS|SV|SW|SX|YO|YP|YQ|YR|LZ|T9|E7|9A|S5|HA|HG|YU|YT|4O)/.test(c)) return 'EU';
+  if (/^(JA|JE|JF|JG|JH|JI|JJ|JK|JL|JM|JN|JO|JP|JQ|JR|JS|HL|DS|DT|BY|BA|BD|BG|BH|BJ|BL|BT|BU|BV|VU|AT|AU|AV|AW|HS|E2|UN|UP|UQ|EK|EW|ER|EX|EY|EZ|UK|4J|4K|4L|A4|A6|A7|A9|HZ|OD|YK|4X|4Z|EP|EQ|AP)/.test(c)) return 'AS';
+  if (/^(ZS|ZR|ZT|ZU|V5|A2|7P|C9|9J|5H|5X|5Z|7Q|ET|ST|SS|SU|CN|6W|TU|TJ|TR|TT|TL|TZ|XT|5V|5N|D2|D4|D6|J2|J5|S9|3C|3X|5A|ZE|9Q|9U|9X|T5|C5|EL)/.test(c)) return 'AF';
+  if (/^(VK|AX|ZL|ZM)/.test(c)) return 'OC';
+  return '?';
+};
 window.DXCluster = class DXCluster {
   constructor(wsUrl, maxAgeMinutes = 30) {
     this._url = wsUrl; this.maxAge = maxAgeMinutes;
-    this._spots = new Map(); this._ws = null;
+    this._spots = new Map(); this._ws = null; this.spotterRegion = 'All';
     this._backoff = 1000; this._intentionalClose = false;
     this.onUpdate = null; this.onStatus = null;
   }
@@ -29,6 +46,7 @@ window.DXCluster = class DXCluster {
   }
   _insertSpot(spot) {
     if (!spot || !spot.dx_call) return;
+    spot._continent = window._spotterContinent(spot.spotter || '');
     this._spots.set(spot.dx_call, spot);
   }
   purge() {
@@ -40,7 +58,9 @@ window.DXCluster = class DXCluster {
     const out = [];
     for (const spot of this._spots.values()) {
       const hz = spot.frequency * 1000;
-      if (hz >= lowHz && hz <= highHz) out.push(spot);
+      if (hz >= lowHz && hz <= highHz) {
+        if (this.spotterRegion === 'All' || spot._continent === this.spotterRegion) out.push(spot);
+      }
     }
     return out;
   }

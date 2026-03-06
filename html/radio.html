@@ -654,9 +654,14 @@ input[type=range]::-webkit-slider-thumb {
       <option>15 min</option><option selected>30 min</option><option>60 min</option>
     </select>
     <span class="dxg-lbl" style="margin-left:4px">Mode</span>
-    <select class="sel" style="font-size:10px">
+    <select class="sel" id="dx-mode-sel" style="font-size:10px">
       <option selected>All</option><option>CW</option><option>SSB</option>
       <option>FT8</option><option>FT4</option><option>RTTY</option>
+    </select>
+    <span class="dxg-lbl" style="margin-left:4px">Region</span>
+    <select class="sel" id="dx-region-sel" style="font-size:10px">
+      <option selected>All</option><option>EU</option><option>NA</option>
+      <option>SA</option><option>AS</option><option>AF</option><option>OC</option>
     </select>
   </div>
 
@@ -1257,6 +1262,11 @@ function setSolPill(label, value, cssClass) {
   window._dxOverlay = dxOverlay;
 
   dxCluster.onUpdate = () => dxOverlay.draw();
+  const dxRegionSel = document.getElementById('dx-region-sel');
+  if (dxRegionSel) dxRegionSel.addEventListener('change', () => {
+    dxCluster.spotterRegion = dxRegionSel.value;
+    dxOverlay.draw();
+  });
   dxCluster.connect();
   // Redraw every 60 s to age-fade spots even when no new spots arrive
   setInterval(() => dxOverlay.draw(), 60000);

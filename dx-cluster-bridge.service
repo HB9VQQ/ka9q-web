@@ -1,0 +1,18 @@
+[Unit]
+Description=DX Cluster WebSocket Bridge
+After=network.target
+
+[Service]
+Type=simple
+User=radio
+ExecStart=/usr/local/bin/dx-cluster-bridge.py \
+    --cluster-host dxcluster.hb9vqq.ch \
+    --cluster-port 7300 \
+    --callsign HB9CU-10 \
+    --ws-port 9373 \
+    --max-age 30
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

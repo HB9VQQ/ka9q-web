@@ -1,267 +1,1413 @@
 <!DOCTYPE html>
-<!-- format cleanup wa2zkd v2.1 16 Feb 2025 -->
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web SDR + ka9q-radio</title>
-    <link rel="stylesheet" type="text/css" href="style.css" />
-    <script src="colormap.js"></script>
-    <script src="spectrum.js"></script>
-    <script src="pcm-player.js"></script>
-    <script src="radio.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HB9VQQ · WebSDR</title>
+<script src="colormap.js"></script>
+<script src="spectrum.js"></script>
+<script src="pcm-player.js"></script>
+<script src="radio.js"></script>
+<script src="smeter.js" defer></script>
+<script src="dx-cluster.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ───────────────────────────────────────────
+   RESET + DESIGN TOKENS
+─────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  /* Palette */
+  --ink:       #060b12;
+  --ink2:      #0a1220;
+  --ink3:      #0e1928;
+  --panel:     #091422;
+  --rule:      #152235;
+  --rule2:     #1c2f47;
+  --teal:      #00d4c8;
+  --teal-dim:  #007a74;
+  --teal-glow: rgba(0,212,200,0.15);
+  --amber:     #f5a623;
+  --amber-dim: #a06a0a;
+  --coral:     #ff5f57;
+  --coral-dim: #7a1f1a;
+  --lime:      #7fff6e;
+  --lime-dim:  #3a7a30;
+  --violet:    #c084fc;
+  --txt:       #b8cfe0;
+  --txt-dim:   #4a6a84;
+  --txt-hi:    #e0f0ff;
+  --white:     #f0f8ff;
+
+  /* Typography */
+  --f-ui:   'Chakra Petch', sans-serif;
+  --f-mono: 'JetBrains Mono', monospace;
+
+  /* Sizes */
+  --hdr-h:   32px;
+  --freq-h:  54px;
+  --ctrl-h:  82px;
+  --dx-h:    48px;
+  --stat-h:  30px;
+}
+
+html,body{height:100%;background:var(--ink);color:var(--txt);font-family:var(--f-ui);font-size:12px;overflow:hidden}
+
+/* Scanline texture overlay */
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:9999;
+  background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--ink2)}
+::-webkit-scrollbar-thumb{background:var(--rule2);border-radius:2px}
+
+/* ───────────────────────────────────────────
+   LAYOUT SHELL
+─────────────────────────────────────────── */
+#app {
+  display:flex; flex-direction:column;
+  height:100vh; width:100vw; overflow:hidden;
+}
+
+/* ───────────────────────────────────────────
+   HEADER
+─────────────────────────────────────────── */
+#hdr {
+  background:var(--ink2);
+  border-bottom:1px solid var(--rule);
+  display:flex; align-items:center; gap:0;
+  padding:0 12px; flex-shrink:0; overflow:hidden;
+}
+
+/* Solar pills */.solar-row {
+  display:flex; align-items:center; gap:6px;
+  padding:0 14px; border-right:1px solid var(--rule); flex-shrink:0;
+}
+.sol-pill {
+  display:flex; align-items:center; gap:4px;
+  background:var(--ink3); border:1px solid var(--rule2);
+  border-radius:3px; padding:1px 7px;
+  font-family:var(--f-mono); font-size:10px;
+}
+.sol-pill .lbl { color:var(--txt-dim); letter-spacing:0.08em }
+.sol-pill .val { color:var(--teal); font-weight:500 }
+.sol-pill .val.ok   { color:var(--lime) }
+.sol-pill .val.warn { color:var(--amber) }
+.sol-pill .val.bad  { color:var(--coral) }
+
+/* UTC clock */
+#clock {
+  margin-left:auto;
+  font-family:var(--f-mono); font-size:12px; font-weight:500;
+  color:var(--teal-dim); letter-spacing:0.08em; flex-shrink:0;
+}
+
+/* ───────────────────────────────────────────
+   WATERFALL + SPECTRUM CANVAS AREA
+─────────────────────────────────────────── */
+#wf-wrap {
+  position:relative; background:#000;
+  border-bottom:none; overflow:hidden;
+  flex-shrink:0;
+  /* initial height set by JS */
+  height:420px;
+}
+#wf-wrap canvas { position:absolute; top:0; left:0; width:100%; height:100% }
+#dx-overlay { pointer-events:none; z-index:3 }
+
+/* Internal spectrum/waterfall split handle */
+#spec-resizer {
+  position:absolute; left:0; right:0; height:5px;
+  cursor:ns-resize; z-index:5;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s;
+}
+#spec-resizer:hover, #spec-resizer.dragging {
+  background:rgba(0,212,200,0.18);
+}
+#spec-resizer::after {
+  content:''; display:block;
+  width:48px; height:2px; border-radius:1px;
+  background:rgba(0,212,200,0.3);
+  transition:background .15s;
+}
+#spec-resizer:hover::after, #spec-resizer.dragging::after {
+  background:var(--teal);
+  box-shadow:0 0 6px var(--teal);
+}
+/* Resize handle — outer (between wf-wrap and freq strip) */
+#wf-resizer {
+  height:5px; background:var(--rule); cursor:ns-resize; flex-shrink:0;
+  position:relative; z-index:20; transition:background .15s;
+  display:flex; align-items:center; justify-content:center;
+}
+#wf-resizer:hover, #wf-resizer.dragging { background:var(--teal-dim); }
+#wf-resizer::after {
+  content:''; display:block;
+  width:36px; height:2px; border-radius:1px;
+  background:rgba(0,212,200,0.35);
+  transition:background .15s;
+}
+#wf-resizer:hover::after, #wf-resizer.dragging::after { background:var(--teal); }
+
+/* ───────────────────────────────────────────
+   FREQUENCY STRIP
+─────────────────────────────────────────── */
+#freq-strip {
+  background:var(--ink2); border-bottom:1px solid var(--rule);
+  display:flex; align-items:center; padding:0 10px; gap:0; overflow:hidden;
+}
+
+/* Main freq display */
+.freq-block {
+  display:flex; align-items:baseline; gap:5px;
+  padding-right:14px; border-right:1px solid var(--rule);
+  flex-shrink:0; position:relative;
+}
+#freq {
+  font-family:var(--f-ui); font-size:30px; font-weight:700;
+  color:var(--teal); background:transparent; border:none; outline:none;
+  width:168px; letter-spacing:0.04em; line-height:1;
+  caret-color:var(--teal);
+  text-shadow:0 0 20px rgba(0,212,200,0.4);
+}
+#freq:focus { text-shadow:0 0 24px rgba(0,212,200,0.7) }
+.freq-unit {
+  font-family:var(--f-ui); font-size:11px; font-weight:500; letter-spacing:0.1em;
+  color:var(--teal-dim); align-self:flex-end; padding-bottom:4px;
+}
+
+/* VFO label */
+.vfo-lbl {
+  position:absolute; top:3px; left:0;
+  font-family:var(--f-mono); font-size:8px; color:var(--txt-dim); letter-spacing:0.15em;
+}
+
+/* Nudge + SET */
+.nudge-group {
+  display:flex; align-items:center; gap:2px; padding:0 12px;
+  border-right:1px solid var(--rule); flex-shrink:0;
+}
+.nbtn {
+  background:var(--ink3); border:1px solid var(--rule2); color:var(--txt);
+  font-family:var(--f-mono); font-size:11px; padding:3px 8px;
+  border-radius:2px; cursor:pointer; line-height:1; transition:all .1s;
+}
+.nbtn:hover { background:var(--rule2); color:var(--txt-hi) }
+.nbtn.set-btn {
+  border-color:var(--teal-dim); color:var(--teal); background:rgba(0,212,200,0.06);
+  padding:3px 12px; font-weight:500; letter-spacing:0.06em;
+}
+.nbtn.set-btn:hover { background:rgba(0,212,200,0.14); box-shadow:0 0 8px var(--teal-glow) }
+
+/* Strip section */
+.fs {
+  display:flex; align-items:center; gap:6px;
+  padding:0 12px; border-right:1px solid var(--rule); flex-shrink:0;
+}
+.fs:last-child { border-right:none }
+
+.lbl {
+  font-family:var(--f-ui); font-size:9px; font-weight:500; color:var(--txt-dim);
+  letter-spacing:0.12em; text-transform:uppercase; white-space:nowrap;
+}
+
+.sel {
+  background:var(--ink3); border:1px solid var(--rule2); color:var(--txt);
+  font-family:var(--f-mono); font-size:11px; padding:2px 5px;
+  border-radius:2px; outline:none; cursor:pointer;
+}
+.sel:focus { border-color:var(--teal-dim) }
+.sel option { background:var(--ink2) }
+.sel optgroup { color:var(--txt-dim) }
+
+.num-inp {
+  background:var(--ink3); border:1px solid var(--rule2); color:var(--teal);
+  font-family:var(--f-mono); font-size:11px; padding:2px 5px; text-align:right;
+  border-radius:2px; outline:none; width:56px;
+}
+.num-inp:focus { border-color:var(--teal-dim) }
+
+/* S-meter section */
+.smeter-section {
+  margin-left:auto; display:flex; align-items:center; gap:10px; flex-shrink:0;
+  padding-left:14px; border-left:1px solid var(--rule);
+}
+.sm-val { font-family:var(--f-mono); font-size:13px; font-weight:500; color:var(--teal); min-width:24px }
+.sm-dbm { font-family:var(--f-mono); font-size:10px; color:var(--txt-dim) }
+
+/* ───────────────────────────────────────────
+   CONTROLS STRIP
+─────────────────────────────────────────── */
+#ctrl-strip {
+  background:var(--ink3); border-bottom:1px solid var(--rule);
+  display:flex; align-items:stretch; padding:0; overflow-x:auto; flex-shrink:0;
+}
+
+.cg { /* control group */
+  display:flex; flex-direction:column; justify-content:center; gap:5px;
+  padding:6px 12px; border-right:1px solid var(--rule); flex-shrink:0;
+}
+.cg:last-child { border-right:none }
+.cg-title {
+  font-family:var(--f-ui); font-size:8px; font-weight:600; letter-spacing:0.16em;
+  text-transform:uppercase; color:var(--txt-dim); margin-bottom:1px;
+}
+.crow { display:flex; align-items:center; gap:5px }
+
+input[type=range] {
+  -webkit-appearance:none; height:3px; border-radius:2px;
+  background:var(--rule2); outline:none; cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:10px; height:10px; border-radius:50%;
+  background:var(--teal); border:1px solid var(--ink); cursor:pointer;
+}
+
+.cbtn {
+  background:var(--ink2); border:1px solid var(--rule2); color:var(--txt);
+  font-family:var(--f-ui); font-size:10px; font-weight:500; letter-spacing:0.04em;
+  padding:3px 9px; border-radius:2px; cursor:pointer; transition:all .1s; white-space:nowrap;
+}
+.cbtn:hover { background:var(--rule2); color:var(--txt-hi) }
+.cbtn.on    { background:rgba(0,212,200,0.1); border-color:var(--teal-dim); color:var(--teal) }
+.cbtn.go    { background:rgba(127,255,110,0.08); border-color:var(--lime-dim); color:var(--lime) }
+.cbtn.go:hover { background:rgba(127,255,110,0.14) }
+.cbtn.warn  { background:rgba(255,95,87,0.08); border-color:var(--coral-dim); color:var(--coral) }
+.cbtn.purple{ background:rgba(192,132,252,0.08); border-color:#6a3a9a; color:var(--violet) }
+
+.ck {
+  display:flex; align-items:center; gap:4px; cursor:pointer;
+  font-family:var(--f-mono); font-size:10px; color:var(--txt); user-select:none;
+}
+.ck input { accent-color:var(--teal); width:10px; height:10px; cursor:pointer }
+
+/* ───────────────────────────────────────────
+   DX CLUSTER STRIP
+─────────────────────────────────────────── */
+#dx-strip {
+  background:var(--panel); border-bottom:1px solid var(--rule);
+  display:flex; align-items:center; padding:0; overflow-x:auto; flex-shrink:0;
+  /* subtle left accent */
+  border-left:3px solid var(--teal-dim);
+}
+
+.dxg {
+  display:flex; align-items:center; gap:7px;
+  padding:0 12px; border-right:1px solid var(--rule); flex-shrink:0; height:100%;
+}
+.dxg:last-child { border-right:none }
+.dxg-lbl {
+  font-family:var(--f-ui); font-size:8px; font-weight:600; letter-spacing:0.16em;
+  text-transform:uppercase; color:var(--teal-dim); white-space:nowrap;
+}
+
+/* Toggle */
+.dx-toggle {
+  display:flex; align-items:center; gap:6px;
+  background:rgba(0,212,200,0.06); border:1px solid var(--teal-dim);
+  border-radius:3px; padding:3px 10px; cursor:pointer; transition:all .15s;
+  font-family:var(--f-ui); font-size:10px; font-weight:600; letter-spacing:0.08em; color:var(--teal);
+}
+.dx-toggle:hover { background:rgba(0,212,200,0.12) }
+.dx-toggle.off { background:var(--ink3); border-color:var(--rule2); color:var(--txt-dim) }
+
+/* Status dot */
+.dot {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--lime); box-shadow:0 0 6px var(--lime); animation:blink 2s infinite;
+}
+.dot.connecting { background:var(--amber); box-shadow:0 0 6px var(--amber) }
+.dot.off        { background:var(--rule2); box-shadow:none; animation:none }
+
+/* Spot count badge */
+.spot-badge {
+  font-family:var(--f-mono); font-size:11px; font-weight:500;
+  color:var(--teal); background:rgba(0,212,200,0.1);
+  border:1px solid rgba(0,212,200,0.25); border-radius:2px;
+  padding:1px 7px; min-width:28px; text-align:center;
+}
+
+/* Cluster select */
+.cluster-sel {
+  background:var(--ink2); border:1px solid var(--rule2); color:var(--txt);
+  font-family:var(--f-mono); font-size:10px; padding:2px 6px; border-radius:2px;
+  outline:none; max-width:205px; cursor:pointer;
+}
+.cluster-sel:focus { border-color:var(--teal-dim) }
+.cluster-sel option { background:var(--ink2) }
+
+.icon-btn {
+  background:var(--ink2); border:1px solid var(--rule2); color:var(--txt-dim);
+  font-size:12px; padding:2px 7px; border-radius:2px; cursor:pointer; line-height:1; transition:all .1s;
+}
+.icon-btn:hover { color:var(--teal); border-color:var(--teal-dim) }
+
+/* Callsign */
+.call-inp {
+  background:var(--ink2); border:1px solid var(--rule2); color:var(--lime);
+  font-family:var(--f-mono); font-size:11px; font-weight:500;
+  padding:2px 7px; border-radius:2px; outline:none; width:85px; letter-spacing:0.06em;
+  text-transform:uppercase;
+}
+.call-inp:focus { border-color:var(--lime-dim); box-shadow:0 0 8px rgba(127,255,110,0.1) }
+
+/* Mode legend */
+.legend { display:flex; gap:7px; align-items:center }
+.leg {
+  display:flex; align-items:center; gap:3px;
+  font-family:var(--f-mono); font-size:9px; color:var(--txt-dim); cursor:pointer; transition:color .1s;
+}
+.leg:hover,.leg.on { color:var(--txt-hi) }
+.leg-sq { width:8px; height:8px; border-radius:1px; flex-shrink:0; opacity:0.85 }
+
+/* Bridge URL */
+.bridge-inp {
+  background:var(--ink2); border:1px solid var(--rule2); color:var(--teal-dim);
+  font-family:var(--f-mono); font-size:9px; padding:2px 6px; border-radius:2px;
+  outline:none; width:170px;
+}
+.bridge-inp:focus { border-color:var(--teal-dim) }
+
+/* ───────────────────────────────────────────
+   STATUS BAR
+─────────────────────────────────────────── */
+#stat-bar {
+  background:var(--ink2); border-top:none;
+  display:flex; align-items:center; overflow:hidden;
+  font-family:var(--f-mono); font-size:9px; flex-shrink:0;
+}
+.si {
+  display:flex; align-items:center; gap:4px;
+  padding:0 10px; border-right:1px solid var(--rule); height:100%; flex-shrink:0;
+}
+.si-lbl { color:var(--txt-dim); letter-spacing:0.08em; text-transform:uppercase }
+.si-val { color:var(--txt); }
+.si-val.hi { color:var(--teal) }
+.si-val.warn { color:var(--amber) }
+.si-val.ok { color:var(--lime) }
+
+/* WWV tail */
+.wwv-tail {
+  margin-left:auto; padding:0 10px; color:var(--txt-dim); font-size:9px;
+  white-space:nowrap; border-left:1px solid var(--rule);
+}
+.wwv-tail a { color:inherit; text-decoration:none }
+.wwv-tail a:hover { color:var(--teal) }
+
+/* From upstream style.css — required for Options dialog and overlay */
+#optionsDialog { display:none; position:absolute; width:auto; max-width:600px; padding:10px; background:#0d1b2a; border:1px solid #00d4c8; box-shadow:0 4px 24px rgba(0,0,0,0.8); z-index:1000; font-size:12px; color:#c8d8e8; border-radius:4px; }
+#optionsDialog input[type=text], #optionsDialog input[type=number], #optionsDialog select { background:#1a2a3a; color:#c8d8e8; border:1px solid #2a4a6a; padding:2px 4px; border-radius:2px; }
+#optionsDialog input[type=checkbox] { accent-color:#00d4c8; }
+#optionsDialog button { background:#1a2a3a; color:#c8d8e8; border:1px solid #2a4a6a; padding:3px 8px; cursor:pointer; border-radius:2px; white-space:nowrap; }
+#optionsDialog button:hover { background:#2a3a4a; border-color:#00d4c8; }
+#optionsDialog label { color:#c8d8e8; }
+#optionsDialog.open { display:block; }
+#dialogOverlay { display:none; position:fixed; left:0; top:0; width:100%; height:100%; z-index:500; pointer-events:none; }
+#dialogOverlay.open { display:block; }
+</style>
 </head>
 <body>
-    <font face="Arial">
-    <center><h3 id="heading">Web SDR + ka9q-radio</h3></center>
-    <audio id="audio">
-    </audio>
-    <!-- canvas needs 'tabindex' to be focusable
-         https://stackoverflow.com/questions/12886286/addeventlistener-for-keydown-on-canvas
-    -->
-    <canvas id="waterfall" tabindex="1"></canvas>
-    <br><center>
-    <span id="ge_data"></span>
-    <br><br>
-    <table style="border: solid">
-    <tr>
-    <td rowspan=1 colspan=1>
-    <button id="postion_up" onclick="positionUp()">Position +</button>
-    </td>
-    <td rowspan=1 colspan=1>
-    <button id="rangeinc" onclick="rangeIncrease()">Range +</button>
-    </td>
-    <td rowspan=2 colspan=1>
-    <input type="text" id="freq" style="color:green; font-size:30px; border: solid; width:150px" value="" onchange="setFrequency()"/>
-    </td>
-    <td rowspan=2 colspan=>
-    <label for="step">&nbsp;&nbsp;&nbsp;&nbsp;Step:</label>
-    <select name="step" id="step" onchange="step_changed(this.value)">
-        <option value="1">1Hz</option>
-        <option value="10">10Hz</option>
-        <option value="100">100Hz</option>
-        <option value="250">250Hz</option>
-        <option value="500">500Hz</option>
-        <option value="1000">1KHz</option>
-        <option value="5000">5KHz</option>
-        <option value="9000">9KHz</option>
-        <option value="10000">10KHz</option>
-        <option value="100000">100KHz</option>
-        <option value="1000000">1MHz</option>
+<div id="app">
+
+<!-- ════════════════════════════ HEADER ════════════════════════════ -->
+<header id="hdr">
+    <span id="heading" style="font-family:var(--f-ui);font-size:13px;font-weight:600;color:var(--teal);letter-spacing:0.08em;">Web SDR + ka9q-radio</span>
+
+  <div class="solar-row">
+    <div class="sol-pill"><span class="lbl">SFI</span><span class="val ok">141</span></div>
+    <div class="sol-pill"><span class="lbl">A</span><span class="val warn">7</span></div>
+    <div class="sol-pill"><span class="lbl">K</span><span class="val ok">1.67</span></div>
+    <div class="sol-pill"><span class="lbl">KP</span><span class="val ok">1.3</span></div>
+    <div class="sol-pill"><span class="lbl">SWS</span><span class="val ok">438 km/s</span></div>
+    <div class="sol-pill"><span class="lbl">DRAP</span><span class="val ok">CLEAR</span></div>
+  </div>
+
+  <div id="clock">10:50:34 UTC</div>
+</header>
+
+<!-- ════════════════════════════ WATERFALL ════════════════════════════ -->
+<div id="wf-wrap">
+  <canvas id="waterfall" tabindex="1"></canvas>
+  <canvas id="dx-overlay"></canvas>
+  <!-- NOTE: no overlay divs here — spectrum.js draws span/band labels onto the canvas directly -->
+  <div id="spec-resizer" title="Drag to resize spectrum / waterfall split"></div>
+</div>
+
+<!-- ════════════════════════════ RESIZE HANDLE ════════════════════════════ -->
+<div id="wf-resizer" title="Drag to resize waterfall"></div>
+
+<!-- ════════════════════════════ FREQUENCY STRIP ════════════════════════════ -->
+<div id="freq-strip">
+
+  <div class="freq-block">
+    <span class="vfo-lbl">VFO·A</span>
+    <input id="freq" type="text" value="" title="Frequency kHz — Enter to tune" onkeydown="if(event.key==='Enter'){var f=parseFloat(this.value)*1000;if(!isNaN(f)){spectrum.setFrequency(f);ws.send('F:'+this.value);}}">
+    <span class="freq-unit">kHz</span>
+  </div>
+
+  <div class="nudge-group">
+    <button class="nbtn" onmousedown="startDecrement(10)" onmouseup="stopDecrement()" onmouseout="stopDecrement()" title="−10×step">«</button>
+    <button class="nbtn" onmousedown="startDecrement()" onmouseup="stopDecrement()" onmouseout="stopDecrement()" title="−step">−</button>
+    <button class="nbtn set-btn" onclick="setFrequencyW()" title="Tune to frequency">TUNE</button>
+    <button class="nbtn" onmousedown="startIncrement()" onmouseup="stopIncrement()" onmouseout="stopIncrement()" title="+step">+</button>
+    <button class="nbtn" onmousedown="startIncrement(10)" onmouseup="stopIncrement()" onmouseout="stopIncrement()" title="+10×step">»</button>
+  </div>
+
+  <div class="fs">
+    <span class="lbl">Mode</span>
+    <select id="mode" class="sel" onchange="setMode(this.value)" title="Demodulation mode">
+      <option value="cwu">CWU</option><option value="cwl">CWL</option>
+      <option value="usb" selected>USB</option><option value="lsb">LSB</option>
+      <option value="am">AM</option><option value="sam">SAM</option><option value="fm">FM</option><option value="iq">IQ</option>
     </select>
-    </td>
-        <td rowspan=2 colspan=1>
-    <button id="autoscale" style="color:brown; font-size:20px; height:40px; width:160px; border:solid" onclick="autoscale()">Autoscale</button>
-    </td><td></td>
-   <td rowspan=2 colspan=4><label for="zoom_level">Zoom:</label><input type="range" id="zoom_level" name="zoom" min="0" value="21" max="22" onchange="setZoom()"/>
-    </td>
+  </div>
 
-    </tr>
-    <tr>
-    <td rowspan=1 colspan=1>
-    <button id="position_down" onclick="positionDown()">Position -</button>
-    </td>
-    <td rowspan=1 colspan=1>
-    <button id="rangedec" onclick="rangeDecrease()">Range -</button>
-    </td>
-    </tr>
+  <div class="fs">
+    <span class="lbl">Filter Hz</span>
+    <input id="filterLowInput"  type="number" class="num-inp" step="100" value="-1500" title="Filter low edge Hz">
+    <span style="color:var(--rule2);font-size:10px">↔</span>
+    <input id="filterHighInput" type="number" class="num-inp" step="100" value="1500"  title="Filter high edge Hz">
+    <button id="edge_button" class="cbtn" onclick="sendFilterEdges()" style="padding:2px 6px;margin-left:2px" title="Send filter edges">Edge</button>
+  </div>
 
-    </tr>
-    <tr>
-    <td rowspan=1 colspan=1>
-    <button id="fft_avg_up" onclick="spectrum.incrementAveraging()">FFT AVG +</button>
-    </td>
-    <td rowspan=1 colspan=1>
-    <button id="spectrum_size_up" onclick="spectrum.incrementSpectrumPercent()">Spectrum +</button>
-    </td>
-        <td rowspan=2>
-    <button onmousedown="startDecrement()" onmouseup="stopDecrement()"
-        style="width:78px">  Freq -  </button>
-    <button onmousedown="startIncrement()" onmouseup="stopIncrement()"
-        style="width:78px">  Freq +  </button>
-    </td>
-
-
-    <td>
-    <label for="band" style="font-size:15px">Band/Chan:</label>
-    <select name="band" id="band" onchange="setBand(this.value)">
-        <option value="" disabled selected hidden>Select Band</option>
-        <option value="1900000">160M</option>
-        <option value="3600000">80M</option>
-        <option value="5406500">60M</option>
-        <option value="7150000">40M</option>
-        <option value="10130000">30M</option>
-        <option value="14175000">20M</option>
-        <option value="18111000">17M</option>
-        <option value="21300000">15M</option>
-        <option value="24931000">12M</option>
-        <option value="29000000">10M</option>
-        <option value="3330000">CHU3330</option>
-        <option value="7850000">CHU7850</option>
-        <option value="14670000">CHU14670</option>
-        <option value="5000000">WWV5000</option>
-        <option value="10000000">WWV10MHz</option>
-        <option value="15000000">WWV15MHz</option>
-        <option value="20000000">WWV20MHz</option>
+  <div class="fs">
+    <span class="lbl">Band</span>
+    <select id="band_category" class="sel" title="Band category"><option value="amateur">Amateur</option><option value="broadcast">Broadcast</option><option value="utility">Utility</option></select>
+    <span style="color:var(--rule2);font-size:9px">›</span>
+    <select id="band" class="sel" title="Band">
+      <option value="" disabled selected hidden>Band</option>
     </select>
-    </td>
-    <td colspan=2>
-    <label for="mode" style="font-size:15px">&nbsp;&nbsp;&nbsp;&nbsp;Mode:</label>
-    <select name="mode" id="mode" onchange="setMode(this.value)">
-        <option value="cwu">CWU</option>
-        <option value="cwl">CWL</option>
-        <option value="usb">USB</option>
-        <option value="lsb">LSB</option>
-        <option value="am">AM</option>
-        <option value="sam">SAM</option>
-        <option value="fm">FM</option>
+  </div>
+
+  <div class="fs">
+    <span class="lbl">Step</span>
+    <select id="step" class="sel" onchange="step_changed(this.value)" title="Frequency step size">
+      <option value="1">1 Hz</option>
+      <option value="10">10 Hz</option>
+      <option value="100">100 Hz</option>
+      <option value="1000" selected>1 kHz</option>
+      <option value="5000">5 kHz</option>
+      <option value="9000">9 kHz</option>
+      <option value="10000">10 kHz</option>
+      <option value="12500">12.5 kHz</option>
+      <option value="25000">25 kHz</option>
+      <option value="100000">100 kHz</option>
     </select>
-    </td>
-      </td>
-    <td>
-    <button id="zoomplus" style="width:90px" onclick="zoomin()">Zoom In</button>
-    <button id="zoomminus" style="width:90px" onclick="zoomout()">Zoom Out</button>
-    </td>
-    </tr>
-    <tr>
-    <td rowspan=1 colspan=1>
-    <button id="fft_avg_down" onclick="spectrum.decrementAveraging()">FFT AVG -</button>
-    </td>
-    <td rowspan=1 colspan=1>
-    <button id="spectrum_size_down" onclick="spectrum.decrementSpectrumPercent()">Spectrum -</button>
-    </td>
-        <td>
-    <button style="width:182px" onclick="setFrequency()">Set Frequency (kHz)</button>
-    </td>
-    <td>
-    <label for="max_hold"
-    style="font-size:15px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Hold:</label>
-    <button id="max_hold" onclick="spectrum.toggleMaxHold()">Max hold</button>
-    </td>
-      <td colspan=4>
-    <button id="zoomcenter" style="width:185px" onclick="zoomcenter()">Center</button>
-    </td>
+  </div>
 
-    </td>
+  <div class="smeter-section">
+    <span class="sm-dbm" id="sm-dbm">—</span>
+    <canvas id="smeter" width="100" height="20" title="Signal power, SNR or Overrange rate" style="align-self:center"></canvas>
+    <span class="sm-val" id="sm-val">—</span>
+    <span id="pwr_data"  style="font-family:var(--f-mono);font-size:10px;color:var(--txt-dim);min-width:80px"></span>
+    <span id="pwr_units" style="font-family:var(--f-mono);font-size:10px;color:var(--txt-dim)"></span>
+    <span id="s_data"    style="font-family:var(--f-mono);font-size:10px;color:lime;min-width:48px"></span>
+    <span id="snr_units" style="font-family:var(--f-mono);font-size:10px;color:var(--txt-dim)"></span>
+    <span id="snr_data"  style="font-family:var(--f-mono);font-size:10px;color:var(--teal);min-width:48px"></span>
+    <button id="smeter-popup-btn" title="Toggle analog S-meter" style="
+      background:var(--ink3); border:1px solid var(--rule2); color:var(--teal-dim);
+      font-family:var(--f-ui); font-size:9px; font-weight:600; letter-spacing:0.08em;
+      padding:2px 6px; border-radius:2px; cursor:pointer; margin-left:4px;
+      transition:all .15s;">S⊙</button>
+  </div>
+</div>
 
-</tr>
-<font size="-1">
-  <tr>
-    <td><font size="-1">WF range:</td>
-    <td><input type="text" id="waterfall_min" style="width: 30px" value="" onchange="setWaterfallMin()"/>
-      <input type="text" id="waterfall_max" style="width: 30px" value="" onchange="setWaterfallMax()"/></td>
-     <td rowspan=2 colspan=1>
-    <button id="audio_button" style="color:DarkViolet; border: solid;
-      font-size:20px; height:40px; width:160px"  onclick="audio_start_stop()" value="START">Start Audio</button>
-      </td>
-     <td rowspan=2>
-        <button id="csv_out" style="height:40px; width:85x"  onclick="dumpCSV()">Write info file</button>
-        <button id="bug_upload" style="height:40px; width:85px" onclick="uploadBug()">Upload bug</button>
-      </td>
+<!-- ════════════════════════════ CONTROLS STRIP ════════════════════════════ -->
+<div id="ctrl-strip">
 
-       <td rowspan=1 colspan=2>
-        <label for="decay_list" style="font-size:15px">Max hold decay:</label>
-        <select id="decay_list" onchange="spectrum.setDecay(this.value)">
-          <option value="1">Infinite</option>
-          <option value="1.0001">1.0001</option>
-          <option value="1.0005">1.0005</option>
-          <option value="1.001">1.001</option>
-          <option value="1.005">1.005</option>
-          <option value="1.01">1.05</option>
-          <option value="1.05">1.01</option>
-          <option value="1.1">1.1</option>
-        </select>
-      </td>
-   <td rowspan=2 colspan=2>
-    <button id="pause" style="height:40px; width:185px" onclick="spectrum.togglePaused()">Pause</button>
-    </td>
-
-    </tr>
-    <tr>
-      <td><font size="-1">Spectrum range:</td>
-      <td><input type="text" id="spectrum_min" style="width: 30px" value="" onchange="setSpectrumMin()"/>
-      <input type="text" id="spectrum_max" style="width:30px" value="" onchange="setSpectrumMax()"/></td>
-      <td rowspan=2 colspan=1>
-        <label for="colormap" style="font-size:15px">&nbsp;&nbsp;Colormap:</label>
-        <select name="colormap" id="colormap" onchange="spectrum.setColormap(this.value)">
-          <option value="0">turbo</option>
-          <option value="1">fosphorz</option>
-          <option value="2">viridis</option>
-          <option value="3">inferno</option>
-          <option value="4">magma</option>
-          <option value="5">jet</option>
-          <option value="6">binary</option>
-          <option value="7">blue</option>
-          <option value="8">short</option>
-          <option value="9">kiwi</option>
-        </select>
-      </td>
-    </tr>
-    </table>
-    </center>
-    <br>
-    <div style="width: 100%;" id="stat_div">
-      <table id="stat_table">
-        <tr><td><span id="rf_gain"></span></td><td><span id="adc_samp_rate"></span></td><td><span id="gps_time"></span></td></tr>
-        <tr><td><span id="rf_attn"></span></td> <td><span id="hz_per_bin"></span></td><td><span id="uptime"></span></td></tr>
-        <tr><td><span id="rf_cal"></span></td><td><span id="bins"></span></td> <td><span id="adc_overs"></span></td></tr>
-        <tr><td><span id="rf_agc"></span></td><td><span id="ssrc"></span></td><td><span id="adc_last_over"></span></td></tr>
-        <tr><td><span id="if_power"></span></td><td><span id="fft_avg"></span></td><td><span id="blocks"></span></td></tr>
-        <tr><td><span id="noise_density"></span></td><td><span id="decay"></span></td><td><span id="adc_samples"></span></td></tr>
-        <tr><td><span id="baseband_power"></span></td><td><span id="spare1"></span></td><td><span id="spare2"></span></td></tr>
-        <tr><td><span id="version"></span></td><td><span id="webserver_version"></span></td><td><span id="rx_rate"></span></td></tr>
-      </table>
+  <div class="cg">
+    <div class="cg-title">Spectrum</div>
+    <div class="crow">
+      <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:28px">Ceil</span>
+      <button class="cbtn" style="padding:2px 5px" onclick="rangeDecrease()" id="rangedec">−</button>
+      <input type="number" id="spectrum_max" class="num-inp" value="-65" style="width:50px" onchange="setSpectrumMax()">
+      <button class="cbtn" style="padding:2px 5px" onclick="rangeIncrease()" id="rangeinc">+</button>
     </div>
+    <div class="crow">
+      <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:28px">Floor</span>
+      <button class="cbtn" style="padding:2px 5px" onclick="baselineDown()" id="baseline_down">−</button>
+      <input type="number" id="spectrum_min" class="num-inp" value="-125" style="width:50px" onchange="setSpectrumMin()">
+      <button class="cbtn" style="padding:2px 5px" onclick="baselineUp()" id="baseline_up">+</button>
+    </div>
+  </div>
 
-    <input type="checkbox" id="cursor" onclick="spectrum.cursorCheck()" value=false name="cursor"/>  <label for="cursor">Activate cursor</label>
-    <input type="checkbox" id="check_live" checked />  <label for="check_live">Show live</label>
-    <input type="checkbox" id="check_max" checked />  <label for="check_max">Show max</label>
-    <input type="checkbox" id="check_min" checked />  <label for="check_min">Show min</label>
-    <span id="cursor_data"></span>
-    <span id="info"> </span>
-    <span id="audiospan"> </span>
-    <br>
-    <div id="note_div">Notes:<textarea id="note_text" class="no-scrollbars"></textarea></div>
-    <ul>
-    <li>Use mouse to click to a frequency.</li>
-    <li>Use mouse wheel to increment/decrement frequency by Step amount.</li>
-    <li>Enter frequency in kHz and hit Return or press <b>Set Frequency (kHz)</b>.</li>
-    <li>Tick the 'Activate cursor' box to enable cursor: use wheel or click to select cursor location.</li>
-    <li>Click on the 'Autoscale' button to set amplitude range to fit current spectrum</li>
-    <li>The 'Max hold decay' setting adjusts how slowly the max hold trace decays</li>
-    </ul>
-    <ul>
-      If the spectrum display/waterfall is focused, keyboard shortcuts are active:
-      <li>Press space to toggle pause/run mode</li>
-      <li>'f' to toggle fullscreen mode</li>
-      <li>'c' to step through the colormap options</li>
-      <li>up/down arrow shifts the spectrum trace up/down</li>
-      <li>left/right arrow increases/decreases amplitude range</li>
-      <li>'s'/'w' to increase/decrease size of spectrum display</li>
-      <li>'+'/'-' to increase/decrease FFT averaging</li>
-      <li>'m' to toggle max hold mode</li>
-    </ul>
-    <ul>
-      Recent changes:
-      <li>v2.68: Bugfix: RTP header offset was wrong</li>
-      <li>v2.67: Retry tuning frequency changes until they take effect</li>
-      <li>v2.66: More html cleanup, thanks to Jim Lill WA2ZKD</li>
-      <li>v2.65: Remove server diag messages</li>
-      <li>v2.64: Remove dead spectrum noise density, alter server diag messages</li>
-      <li>Exit on CTRL-C, fix ADC sample count suffix</li>
-      <li>Major html cleanup, thanks to Jim Lill WA2ZKD</li>
-      <li>Experimental/WIP: Added checkboxes for live, min, max spectrum traces.</li>
-      <li>Added "Upload bug" button to send info and screenshot for examination.</li>
-      <li>Fixed cryptic realtime priority warning; use "-r" on the server
-        command line to (attempt) to run with realtime or elevated priority</li>
-      <li>"Write info file" button now saves both CSV file and an HTML screenshot. Try it!</li>
-    </ul>
-    <i>Web Server by John Melton, G0ORX (https://github.com/g0orx/ka9q-radio)</i>
-    <br>
-    <i>ka9q-radio by Phil Karn, KA9Q (https://github.com/ka9q/ka9q-radio)</i>
-    <br>
-    <i>Onion Web Framework by David Moreno (https://github.com/davidmoreno/onion)</i>
-    <br>
-    <i>Spectrum/Waterfall Display by Jeppe Ledet-Pedersen (https://github.com/jledet/waterfall)</i>
-  </body>
+  <div class="cg">
+    <div class="cg-title">Waterfall</div>
+    <div class="crow">
+      <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:22px">Ceil</span>
+      <input type="range" id="waterfall_max_range" min="-140" max="0"   value="-65"  style="width:80px" oninput="setWaterfallMax()" onwheel="adjustRange(this,event)" title="Waterfall ceiling dBm">
+      <input type="text"  id="waterfall_max"       style="width:38px" readonly class="num-inp">
+    </div>
+    <div class="crow">
+      <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:22px">Floor</span>
+      <input type="range" id="waterfall_min_range" min="-150" max="-40" value="-115" style="width:80px" oninput="setWaterfallMin()" onwheel="adjustRange(this,event)" title="Waterfall floor dBm">
+      <input type="text"  id="waterfall_min"       style="width:38px" readonly class="num-inp">
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-title">View / Zoom</div>
+    <div class="crow">
+      <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:26px">Zoom</span>
+      <input type="range" id="zoom_level" name="zoom" min="0" max="15" value="0"
+             style="width:80px" oninput="setZoom()" onmousedown="zoomMouseDown()"
+             onmouseup="zoomMouseUp()" onwheel="adjustRange(this,event)" title="Spectrum zoom">
+      <button class="cbtn" id="zoomminus" onclick="zoomout()"    style="padding:2px 5px">−</button>
+      <button class="cbtn" id="zoomplus"  onclick="zoomin()"     style="padding:2px 5px">+</button>
+      <button class="cbtn" id="zoomcenter" onclick="zoomcenter()" style="padding:2px 7px" title="Center on tune">⊙</button>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-title">Display</div>
+    <div class="crow" style="gap:8px">
+      <label class="ck"><input type="checkbox" id="check_live" checked>Live</label>
+      <label class="ck"><input type="checkbox" id="check_max" onclick="checkMaxMinChanged()">Max</label>
+      <label class="ck"><input type="checkbox" id="check_min" onclick="checkMaxMinChanged()">Min</label>
+      <label class="ck"><input type="checkbox" id="freeze_min_max">Freeze</label>
+    </div>
+    <div class="crow" style="gap:6px">
+      <span class="lbl">Avg</span>
+      <input type="range" id="fft_avg_input" min="1" max="50" step="1" value="10"
+             style="width:70px" title="FFT averaging 1–50"
+             oninput="document.getElementById('fft_avg_val').textContent=this.value">
+      <span id="fft_avg_val" style="font-family:var(--f-mono);font-size:10px;color:var(--teal);min-width:20px">10</span>
+      <span class="lbl" style="margin-left:4px">Decay</span>
+      <select id="decay_list" class="sel" style="font-size:10px" onchange="spectrum.setDecay(this.value)">
+        <option value="9999">∞</option><option value="1.001">1.001</option>
+        <option value="1.01" selected>1.01</option><option value="1.1">1.1</option>
+      </select>
+    </div>
+    <div class="crow" style="gap:8px">
+      <label class="ck"><input type="checkbox" id="max_hold" onchange="spectrum.setMaxHold(this.checked)">Max Hold</label>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-title">FFT</div>
+    <div class="crow">
+      <button class="cbtn on" id="pause" onclick="spectrum.togglePaused()" style="color:#00d4c8;border:1px solid #00d4c8">⏸ Pause</button>
+      <button class="cbtn warn" id="autoscale" onclick="autoscaleButtonPush()">Autoscale</button>
+    </div>
+    <div class="crow" style="gap:6px">
+      <span class="lbl">Meter</span>
+      <select id="meter" class="sel" style="font-size:10px" onchange="meterType = parseInt(this.value)">
+        <option value="0">Signal</option><option value="1" selected>SNR</option><option value="2">OVR</option>
+      </select>
+      <label class="ck" style="margin-left:4px"><input type="checkbox" id="cursor" onclick="spectrum.cursorCheck()">Cursor</label>
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-title">Audio</div>
+    <div class="crow">
+      <button class="cbtn go" id="audio_button" value="START" onclick="audio_start_stop()" style="min-width:110px;color:#c084fc;border:1px solid #c084fc">▶ Start Audio</button>
+    </div>
+    <div class="crow">
+      <span class="lbl">Vol</span>
+      <input type="range" id="volume_control" min="0" max="1" step="0.01" value="1.0"
+             style="width:70px" oninput="setPlayerVolume(this.value)" onwheel="adjustRange(this,event)" title="Volume">
+      <span class="lbl" style="margin-left:4px">Pan</span>
+      <input type="range" id="panner_control" min="-1" max="1" step="0.1" value="0"
+             style="width:50px;margin-right:0"
+             oninput="setPanner(this.value)" onwheel="adjustRange(this,event)" title="Audio pan L/R">
+    </div>
+  </div>
+
+  <div class="cg">
+    <div class="cg-title">Tools</div>
+    <div class="crow">
+      <button class="cbtn purple" id="OptionsButton" title="Additional options">⚙ Options</button>
+      <button class="cbtn" id="toggleRecording" onclick="toggleAudioRecording()" style="padding:3px 8px">⏺ Record</button>
+      <button class="cbtn" style="padding:3px 7px" title="Toggle fullscreen (or press F)"
+              onclick="if(document.fullscreenElement)document.exitFullscreen();else document.getElementById('waterfall').requestFullscreen()">⛶</button>
+    </div>
+    <div class="crow" style="gap:5px">
+      <span class="lbl">Spec size</span>
+      <button class="cbtn" id="spectrum_size_down" onclick="spectrum.decrementSpectrumPercent()" style="padding:2px 8px" title="Decrease spectrum height">−</button>
+      <button class="cbtn" id="spectrum_size_up"   onclick="spectrum.incrementSpectrumPercent()" style="padding:2px 8px" title="Increase spectrum height">+</button>
+    </div>
+  </div>
+
+</div><!-- /ctrl-strip -->
+
+<!-- ════════════════════════════ DX CLUSTER STRIP ════════════════════════════ -->
+<div id="dx-strip">
+
+  <!-- Enable + status -->
+  <div class="dxg" style="padding-left:10px">
+    <button class="dx-toggle" id="dx-toggle">◉ DX SPOTS</button>
+    <span class="dot" id="dx-dot"></span>
+    <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim)" id="dx-status">Connected</span>
+    <span class="spot-badge" id="dx-count" title="Spots on current span">0</span>
+  </div>
+
+  <!-- Cluster selector -->
+  <div class="dxg">
+    <span class="dxg-lbl">Cluster</span>
+    <select class="cluster-sel">
+      <optgroup label="— Europe —">
+        <option selected>G6NHU-2 · dxspider.co.uk:7300</option>
+        <option>HB9VQQ · dxcluster.hb9vqq.ch:7300</option>
+        <option>RW3XA · dx.obninsk.org:41112</option>
+      </optgroup>
+      <optgroup label="— North America —">
+        <option>VE7CC · ve7cc.net:7300</option>
+        <option>W3LPL · w3lpl.net:7373</option>
+        <option>W9PA · dxc.w9pa.net:7373</option>
+        <option>WB3FFV · dxc.wb3ffv.us:7300</option>
+        <option>NC7J · dxc.nc7j.com:7373</option>
+        <option>K1TTT · k1ttt.net:7373</option>
+      </optgroup>
+      <optgroup label="— Asia/Pacific —">
+        <option>6L0NJ · dxc.dx.or.kr:7300</option>
+      </optgroup>
+    </select>
+    <button class="icon-btn" title="Reconnect">↺</button>
+  </div>
+
+  <!-- Callsign -->
+  <div class="dxg">
+    <span class="dxg-lbl">Callsign</span>
+    <input type="text" class="call-inp" value="HB9VQQ" maxlength="12" placeholder="CALL" title="Your callsign — used for cluster login">
+  </div>
+
+  <!-- Filters -->
+  <div class="dxg">
+    <span class="dxg-lbl">Age</span>
+    <select class="sel" style="font-size:10px">
+      <option>15 min</option><option selected>30 min</option><option>60 min</option>
+    </select>
+    <span class="dxg-lbl" style="margin-left:4px">Mode</span>
+    <select class="sel" style="font-size:10px">
+      <option selected>All</option><option>CW</option><option>SSB</option>
+      <option>FT8</option><option>FT4</option><option>RTTY</option>
+    </select>
+  </div>
+
+  <!-- Legend -->
+  <div class="dxg">
+    <span class="dxg-lbl">Key</span>
+    <div class="legend">
+      <div class="leg on"><span class="leg-sq" style="background:#00ffff"></span>CW</div>
+      <div class="leg on"><span class="leg-sq" style="background:#ffff00"></span>SSB</div>
+      <div class="leg on"><span class="leg-sq" style="background:#ff40ff"></span>FT8/4</div>
+      <div class="leg on"><span class="leg-sq" style="background:#ff8800"></span>RTTY</div>
+      <div class="leg on"><span class="leg-sq" style="background:#888"></span>?</div>
+      <span style="font-family:var(--f-mono);font-size:8px;color:var(--txt-dim);margin-left:4px">fade=age</span>
+    </div>
+  </div>
+
+  <!-- Bridge URL — pushed right -->
+  <div class="dxg" style="margin-left:auto; border-left:1px solid var(--rule)">
+    <span class="dxg-lbl">WS Bridge</span>
+    <input type="text" class="bridge-inp" value="" title="WebSocket bridge URL">
+    <button class="icon-btn" title="Apply">✓</button>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════ STATUS BAR ════════════════════════════ -->
+<div id="stat-bar">
+  <div class="si"><span class="si-lbl">RF Gain</span><span id="rf_gain"    class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Atten</span>  <span id="rf_attn"    class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">RF AGC</span> <span id="rf_agc"     class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Cal</span>    <span id="rf_cal"     class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">IF Pwr</span> <span id="if_power"   class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Bins</span>   <span id="bins"       class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Hz/bin</span> <span id="hz_per_bin" class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Noise</span>  <span id="noise_density" class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">SNR</span>    <span id="snr"        class="si-val hi">—</span></div>
+  <div class="si"><span class="si-lbl">ADC OVR</span><span id="adc_overs"  class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Last OVR</span><span id="adc_last_over" class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Uptime</span> <span id="uptime"     class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Blocks</span> <span id="blocks"     class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">SSRC</span>   <span id="ssrc"       class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">GPS</span>    <span id="gps_time"   class="si-val">—</span></div>
+  <div class="si"><span class="si-lbl">Ver</span>    <span id="version"    class="si-val" style="color:var(--teal-dim)">—</span></div>
+  <div class="wwv-tail"><a href="https://www.hamqsl.com/solar.html" target="_blank" id="wwv_solar">WWV: SFI=141 A=7 K=1.67 · 2026-Mar-05 11:38z ↗</a></div>
+</div>
+
+<!-- ════════════════════════════ FLOATING S-METER ════════════════════════════ -->
+<div id="smeter-float" style="
+  display:none; position:fixed; z-index:200;
+  top:80px; right:20px;
+  background:var(--ink2); border:1px solid var(--rule2);
+  border-radius:6px; box-shadow:0 4px 24px rgba(0,0,0,0.7);
+  user-select:none; min-width:230px;">
+  <!-- Drag handle / title bar -->
+  <div id="smeter-float-hdr" style="
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--ink3); padding:4px 8px; border-radius:6px 6px 0 0;
+    cursor:move; border-bottom:1px solid var(--rule);">
+    <span style="font-family:var(--f-ui);font-size:9px;font-weight:600;letter-spacing:0.14em;color:var(--teal-dim);">S-METER</span>
+    <button id="smeter-float-close" style="
+      background:none; border:none; color:var(--txt-dim); font-size:13px;
+      cursor:pointer; padding:0 2px; line-height:1;" title="Close">✕</button>
+  </div>
+  <!-- Canvas -->
+  <div style="padding:6px 8px 4px;">
+    <canvas id="sMeter" width="214" height="130"
+      style="display:block; border-radius:3px;"></canvas>
+  </div>
+</div>
+
+<!-- ════ REQUIRED HIDDEN ELEMENTS (radio.js reads these on init) ════ -->
+<div id="dialogPlaceholder"></div>
+<div id="dialogOverlay"></div>
+
+<!-- Options dialog stub — populated at runtime by fetch('optionsDialog.html').
+     These hidden inputs are read by loadSettings() before the fetch completes. -->
+<div id="optionsDialog" style="display:none">
+  <button id="closeXButton" style="display:none">✕</button>
+  <select id="colormap" style="display:none">
+    <option value="9" selected>9</option>
+  </select>
+  <input type="checkbox" id="cksbFrequency"        style="display:none">
+  <input type="checkbox" id="ckonlyAutoscaleButton" style="display:none">
+  <input type="checkbox" id="ckShowBandEdges"       style="display:none">
+  <input type="number"   id="spectrumPollInput"     style="display:none" value="100">
+  <input type="number"   id="csvMinuteInput"        style="display:none" value="1">
+  <input type="checkbox" id="csv_out"               style="display:none">
+  <span  id="msg"                                   style="display:none"></span>
+  <input type="checkbox" id="ckAnalogSMeter"        style="display:none">
+  <input type="checkbox" id="ckNoSpectrumFill"      style="display:none">
+</div>
+
+<!-- Miscellaneous spans radio.js writes into -->
+<span id="info"         style="display:none"></span>
+<span id="audiospan"    style="display:none"></span>
+<span id="adc_samp_rate" style="display:none"></span>
+<span id="adc_samples"  style="display:none"></span>
+<span id="decay"        style="display:none"></span>
+<textarea id="note_text" style="display:none"></textarea>
+
+<!-- Memory panel (hidden — shown via Options) -->
+<div id="memories_box" style="display:none">
+  <select  id="memory_select"></select>
+  <input   id="memory_desc"       type="text" maxlength="20">
+  <button  id="save_memory">Save</button>
+  <button  id="recall_memory">Recall</button>
+  <button  id="delete_memory">Delete</button>
+  <button  id="export_memories">Export</button>
+  <input   id="import_memories"     type="file" accept="application/json" style="display:none">
+  <button  id="import_memories_btn">Import</button>
+</div>
+
+<!-- analog_smeter_box: radio.js checks this id to show/hide the analog meter.
+     Visibility is delegated to the floating panel via JS. -->
+<div id="analog_smeter_box" style="display:none"></div>
+
+<!-- Hidden spans used by radio.js update_stats() -->
+<span id="rx_rate"     style="display:none"></span>
+<span id="cursor_data" style="display:none"></span>
+<span id="span"        style="display:none"></span>
+<span id="ge_data"     style="display:none"></span>
+<div  id="stat_div"    style="display:none"></div>
+
+</div><!-- /app -->
+
+<script>
+/* ── Canvas painting ── */
+const SPAN_LO = 14150000, SPAN_HI = 14350000;
+let SPEC_FRAC = 0.40;   // mutable — dragged by spec-resizer
+
+// Position the internal spec/wf split handle to match SPEC_FRAC
+function positionSpecResizer() {
+  const wrap = document.getElementById('wf-wrap');
+  const h    = document.getElementById('spec-resizer');
+  if (!wrap || !h) return;
+  const frac = (typeof spectrum !== 'undefined' && spectrum.spectrumPercent)
+    ? spectrum.spectrumPercent / 100
+    : SPEC_FRAC;
+  const specH = Math.round(wrap.clientHeight * frac);
+  h.style.top = (specH - 2) + 'px';
+}
+
+// ── Spec/WF internal split drag ──
+(function(){
+  const handle  = document.getElementById('spec-resizer');
+  const wfWrap  = document.getElementById('wf-wrap');
+  const MIN_FRAC = 0.12, MAX_FRAC = 0.80;
+  let dragging = false, startY = 0, startFrac = SPEC_FRAC;
+
+  // Redraw DX overlay continuously during spec-resizer drag
+  document.addEventListener('mousemove', () => {
+    if (window._dxOverlay) requestAnimationFrame(() => window._dxOverlay.draw());
+  });
+
+  handle.addEventListener('mousedown', e => {
+    dragging  = true;
+    startY    = e.clientY;
+    startFrac = SPEC_FRAC;
+    handle.classList.add('dragging');
+    document.body.style.cursor     = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const H     = wfWrap.clientHeight;
+    const delta = e.clientY - startY;
+    SPEC_FRAC   = Math.min(MAX_FRAC, Math.max(MIN_FRAC, startFrac + delta / H));
+    positionSpecResizer();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor     = '';
+    document.body.style.userSelect = '';
+    if (typeof spectrum !== 'undefined') {
+      spectrum.setSpectrumPercent(Math.round(SPEC_FRAC * 100));
+    }
+  });
+
+  // Touch
+  handle.addEventListener('touchstart', e => {
+    dragging  = true;
+    startY    = e.touches[0].clientY;
+    startFrac = SPEC_FRAC;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const H     = wfWrap.clientHeight;
+    const delta = e.touches[0].clientY - startY;
+    SPEC_FRAC   = Math.min(MAX_FRAC, Math.max(MIN_FRAC, startFrac + delta / H));
+    positionSpecResizer();
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchend', () => {
+    dragging = false; handle.classList.remove('dragging');
+    if (typeof spectrum !== 'undefined') {
+      spectrum.setSpectrumPercent(Math.round(SPEC_FRAC * 100));
+    }
+  });
+})();
+
+const SPOTS = [
+  {call:'VK2XX',  freq:14165000, mode:'SSB',  age:3},
+  {call:'JA1ABC', freq:14178000, mode:'SSB',  age:9},
+  {call:'K1ZZ',   freq:14195000, mode:'CW',   age:1},
+  {call:'OZ5AAH', freq:14210000, mode:'FT8',  age:5},
+  {call:'5B4AHJ', freq:14225000, mode:'SSB',  age:22},
+  {call:'PY2YU',  freq:14238000, mode:'CW',   age:7},
+  {call:'4X4DX',  freq:14252000, mode:'RTTY', age:16},
+  {call:'ZL2BX',  freq:14270000, mode:'SSB',  age:4},
+  {call:'LU3HY',  freq:14288000, mode:'SSB',  age:11},
+  {call:'UA9XL',  freq:14302000, mode:'CW',   age:2},
+];
+
+const MCOL = {CW:'#00ffff',SSB:'#ffff00',FT8:'#ff40ff',FT4:'#ff40ff',RTTY:'#ff8800'};
+const mc = m => MCOL[m]||'#888888';
+const ageAlpha = (a,max=30) => Math.max(0.25, 1-(a/max)*0.75);
+const f2x = (f,W) => (f-SPAN_LO)/(SPAN_HI-SPAN_LO)*W;
+
+const SIGS = [
+  {f:14165000,p:26},{f:14175000,p:18},{f:14178000,p:22},
+  {f:14195000,p:52},{f:14210000,p:35},{f:14220000,p:16},
+  {f:14225000,p:28},{f:14238000,p:40},{f:14252000,p:44},
+  {f:14270000,p:20},{f:14288000,p:30},{f:14302000,p:55},
+  {f:14315000,p:18},{f:14330000,p:22},
+];
+
+let frame=0;
+// ── Demo waterfall animation ──────────────────────────────────────────────
+// ── Waterfall resize ──
+(function(){
+  const handle = document.getElementById('wf-resizer');
+  const wfWrap = document.getElementById('wf-wrap');
+  const app    = document.getElementById('app');
+  const MIN_H  = 80;
+
+  // Set initial height: fill available space minus all fixed strips
+  function fixedHeight() {
+    let h = 0;
+    for (const el of app.children) {
+      if (el === wfWrap || el === handle) continue;
+      h += el.offsetHeight;
+    }
+    return h;
+  }
+  function initHeight() {
+    const avail = window.innerHeight - fixedHeight() - handle.offsetHeight;
+    wfWrap.style.height = Math.max(MIN_H, avail) + 'px';
+  }
+  window.addEventListener('load', initHeight);
+  window.addEventListener('resize', initHeight);
+
+  let startY = 0, startH = 0, dragging = false;
+
+  // Redraw DX overlay continuously during spec-resizer drag
+  document.addEventListener('mousemove', () => {
+    if (window._dxOverlay) requestAnimationFrame(() => window._dxOverlay.draw());
+  });
+
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    startY   = e.clientY;
+    startH   = wfWrap.offsetHeight;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = e.clientY - startY;
+    const newH  = Math.max(MIN_H, startH + delta);
+    wfWrap.style.height = newH + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    if (typeof spectrum !== 'undefined') {
+      spectrum.resize();
+      if (typeof syncOverlaySize === 'function') syncOverlaySize();
+    }
+  });
+
+  // Touch support
+  handle.addEventListener('touchstart', e => {
+    dragging = true;
+    startY   = e.touches[0].clientY;
+    startH   = wfWrap.offsetHeight;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const delta = e.touches[0].clientY - startY;
+    wfWrap.style.height = Math.max(MIN_H, startH + delta) + 'px';
+    e.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener('touchend', () => {
+    dragging = false;
+    handle.classList.remove('dragging');
+    if (typeof spectrum !== 'undefined') {
+      spectrum.resize();
+      if (typeof syncOverlaySize === 'function') syncOverlaySize();
+    }
+  });
+})();
+
+
+// ── Clock ──
+function tick() {
+  const n=new Date();
+  document.getElementById('clock').textContent =
+    n.getUTCHours().toString().padStart(2,'0')+':'+
+    n.getUTCMinutes().toString().padStart(2,'0')+':'+
+    n.getUTCSeconds().toString().padStart(2,'0')+' UTC';
+}
+setInterval(tick,1000); tick();
+
+
+// ── Callsign uppercase ──
+document.querySelector('.call-inp').addEventListener('input',function(){
+  const s=this.selectionStart;
+  this.value=this.value.toUpperCase();
+  this.setSelectionRange(s,s);
+});
+
+// ── Audio button ──
+
+
+// ── Analog S-meter — mode-aware ──
+// mode: 0=Signal/RSSI, 1=SNR, 2=OVR
+function drawAnalogSMeter(value, mode) {
+  const canvas = document.getElementById('sMeter');
+  if (!canvas || canvas.offsetParent === null) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H - 14, R = H - 22;
+
+  // Background
+  ctx.fillStyle = '#060b12';
+  ctx.fillRect(0, 0, W, H);
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, Math.PI, 2 * Math.PI);
+  ctx.fillStyle = '#0d1b2a';
+  ctx.fill();
+  ctx.strokeStyle = '#1e2d3d';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, Math.PI, 2 * Math.PI);
+  ctx.stroke();
+
+  // Mode-specific scales
+  let scaleMarks, fraction, arcColor, labelText;
+
+  if (mode === 0) {
+    // ── Signal (RSSI) scale ──
+    scaleMarks = [
+      {f:0,     t:'1'  }, {f:0.125, t:'3'  }, {f:0.25,  t:'5'  },
+      {f:0.375, t:'7'  }, {f:0.5,   t:'9'  }, {f:0.667, t:'+20'},
+      {f:0.833, t:'+40'}, {f:1.0,   t:'+60'}
+    ];
+    // fraction from smeter.js logic
+    const adj = value - smallestSig;
+    if (value <= s9Level)
+      fraction = Math.max(0, adj / belowS9Span * s9pfs);
+    else if (value >= biggestSig)
+      fraction = 1;
+    else
+      fraction = s9pfs + (adj - adjAtS9) / aboveS9Span * (1 - s9pfs);
+    arcColor  = fraction > s9pfs ? '#ff5030' : '#00d4c8';
+    labelText = value + ' dBm';
+
+  } else if (mode === 1) {
+    // ── SNR scale: −10 … 0 … +50 dB ──
+    scaleMarks = [
+      {f:0,    t:'−10'}, {f:0.167, t:'0' }, {f:0.333, t:'+10'},
+      {f:0.5,  t:'+20'}, {f:0.667, t:'+30'}, {f:0.833, t:'+40'},
+      {f:1.0,  t:'+50'}
+    ];
+    // −10→0 is 1/6 of arc, 0→+50 is 5/6
+    const zf = 1/6;
+    if (value <= -10) fraction = 0;
+    else if (value <= 0) fraction = zf * ((value + 10) / 10);
+    else fraction = zf + (5/6) * Math.min(1, value / 50);
+    arcColor  = value < 0 ? '#ff5030' : '#00d4c8';
+    labelText = 'SNR: ' + (value >= 0 ? '+' : '') + value + ' dB';
+
+  } else {
+    // ── OVR scale: 0 … 100% ──
+    scaleMarks = [
+      {f:0,    t:'0'  }, {f:0.25,  t:'25' }, {f:0.5,   t:'50' },
+      {f:0.75, t:'75' }, {f:1.0,   t:'100'}
+    ];
+    fraction  = Math.max(0, Math.min(1, value));
+    arcColor  = fraction > 0.7 ? '#ff5030' : '#f5a623';
+    labelText = 'OVR ' + (value * 100).toFixed(0) + '%';
+  }
+
+  fraction = Math.max(0, Math.min(1, fraction));
+
+  // Tick marks
+  scaleMarks.forEach((m, i) => {
+    const a  = Math.PI + Math.PI * m.f;
+    const r1 = R - 12;
+    ctx.strokeStyle = '#2a4060'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + R  * Math.cos(a), cy + R  * Math.sin(a));
+    ctx.lineTo(cx + r1 * Math.cos(a), cy + r1 * Math.sin(a));
+    ctx.stroke();
+    // minor ticks between marks
+    if (i < scaleMarks.length - 1) {
+      const fmid = (m.f + scaleMarks[i+1].f) / 2;
+      const am   = Math.PI + Math.PI * fmid;
+      ctx.strokeStyle = '#1e2d3d'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx + R       * Math.cos(am), cy + R       * Math.sin(am));
+      ctx.lineTo(cx + (R - 7) * Math.cos(am), cy + (R - 7) * Math.sin(am));
+      ctx.stroke();
+    }
+    // label
+    const rl = R - 24;
+    const isOver = m.t.startsWith('+') && mode === 0;
+    ctx.fillStyle = isOver ? '#ff8844' : '#4a8aaa';
+    ctx.font = `bold ${m.t.length > 2 ? 8 : 9}px "JetBrains Mono"`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(m.t, cx + rl * Math.cos(Math.PI + Math.PI * m.f),
+                      cy + rl * Math.sin(Math.PI + Math.PI * m.f));
+  });
+
+  // Red-zone arc (top 33%)
+  if (mode === 0) {
+    ctx.strokeStyle = 'rgba(255,80,40,0.2)'; ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R - 5, Math.PI * 1.5, 2 * Math.PI);
+    ctx.stroke();
+  }
+
+  // Active arc
+  const angle = Math.PI + Math.PI * fraction;
+  ctx.strokeStyle = arcColor; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R - 5, Math.PI, angle);
+  ctx.stroke();
+
+  // Zero line for SNR
+  if (mode === 1) {
+    const zAngle = Math.PI + Math.PI * (1/6);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+    ctx.setLineDash([2,2]);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + (R-5) * Math.cos(zAngle), cy + (R-5) * Math.sin(zAngle));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Needle shadow
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx+1, cy+1);
+  ctx.lineTo(cx + (R-14)*Math.cos(angle)+1, cy + (R-14)*Math.sin(angle)+1);
+  ctx.stroke();
+
+  // Needle
+  ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + (R-14)*Math.cos(angle), cy + (R-14)*Math.sin(angle));
+  ctx.stroke();
+
+  // Pivot
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2*Math.PI);
+  ctx.fillStyle = '#243447'; ctx.fill();
+  ctx.strokeStyle = arcColor; ctx.lineWidth = 1; ctx.stroke();
+
+  // Value label
+  ctx.fillStyle = '#4a8aaa'; ctx.font = '10px "JetBrains Mono"';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillText(labelText, cx, H - 13);
+}
+// ── Floating S-meter toggle + drag ──
+(function(){
+  const panel  = document.getElementById('smeter-float');
+  const btn    = document.getElementById('smeter-popup-btn');
+  const close  = document.getElementById('smeter-float-close');
+  const hdr    = document.getElementById('smeter-float-hdr');
+  let visible  = false;
+  let dragX=0, dragY=0, dragging=false;
+  let panelX=0, panelY=0;
+
+  function show() {
+    visible = true;
+    panel.style.display = 'block';
+    btn.style.color        = 'var(--teal)';
+    btn.style.borderColor  = 'var(--teal-dim)';
+    btn.style.background   = 'rgba(0,212,200,0.08)';
+    const box = document.getElementById('analog_smeter_box');
+    if (box) box.style.display = 'block';
+  }
+  function hide() {
+    visible = false;
+    panel.style.display = 'none';
+    btn.style.color       = 'var(--teal-dim)';
+    btn.style.borderColor = 'var(--rule2)';
+    btn.style.background  = 'var(--ink3)';
+    const box = document.getElementById('analog_smeter_box');
+    if (box) box.style.display = 'none';
+  }
+
+  btn.addEventListener('click', () => visible ? hide() : show());
+  close.addEventListener('click', hide);
+
+  // Drag
+  hdr.addEventListener('mousedown', e => {
+    dragging = true;
+    const rect = panel.getBoundingClientRect();
+    dragX = e.clientX - rect.left;
+    dragY = e.clientY - rect.top;
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    panel.style.right = 'auto';
+    panel.style.left  = (e.clientX - dragX) + 'px';
+    panel.style.top   = (e.clientY - dragY) + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = '';
+  });
+
+  // Expose visibility state for external queries
+  window._smeterFloatVisible = () => visible;
+})();
+document.querySelectorAll('.leg').forEach(l=>{
+  l.addEventListener('click',function(){this.classList.toggle('on');});
+});
+</script>
+
+<script>
+// ── DX Cluster initialisation ──────────────────────────────────────────────
+// dxCanvas declared at outer scope so syncOverlaySize() is accessible from
+// the window resize listener and wf-resizer mouseup handler.
+let dxCanvas;
+
+function syncOverlaySize() {
+  if (!dxCanvas || typeof spectrum === 'undefined') return;
+  const dpr = window.devicePixelRatio || 1;
+  const wfw = document.getElementById('wf-wrap');
+  dxCanvas.width  = wfw.offsetWidth;
+  dxCanvas.height = wfw.offsetHeight;
+
+  dxCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function setSolPill(label, value, cssClass) {
+  document.querySelectorAll('.sol-pill').forEach(pill => {
+    const lbl = pill.querySelector('.lbl');
+    if (lbl && lbl.textContent.trim() === label) {
+      const val = pill.querySelector('.val');
+      if (val) { val.textContent = value; val.className = 'val ' + cssClass; }
+    }
+  });
+}
+
+// spectrum is created inside fetch('optionsDialog.html').then() → init() in radio.js.
+// That fetch is async — DOMContentLoaded fires before it resolves, leaving spectrum
+// undefined. Poll at 50 ms until spectrum exists before wiring up dx-cluster.
+(function waitForSpectrum() {
+  if (typeof spectrum === 'undefined' || spectrum === null) {
+    setTimeout(waitForSpectrum, 50);
+    return;
+  }
+
+  const dxCluster = new DXCluster(
+    (document.querySelector('.bridge-inp') || {value: ''}).value || 'ws://' + window.location.hostname + ':9373',
+    30
+  );
+  dxCanvas = document.getElementById('dx-overlay');
+  const dxOverlay = new DXOverlay(dxCanvas, dxCluster, spectrum);
+  window._dxOverlay = dxOverlay;
+
+  dxCluster.onUpdate = () => dxOverlay.draw();
+  // Redraw every 60 s to age-fade spots even when no new spots arrive
+  setInterval(() => dxOverlay.draw(), 60000);
+
+  positionSpecResizer();  // position inner handle correctly on first load
+  setInterval(positionSpecResizer, 500);  // keep in sync if spectrum changes
+  syncOverlaySize();      // canvas defaults to 300×150 until explicitly sized
+
+  // Resize observer: update overlay immediately when wf-wrap changes size
+  const _wfWrapEl = document.getElementById('wf-wrap');
+  if (_wfWrapEl && window.ResizeObserver) {
+    new ResizeObserver(() => {
+      syncOverlaySize();
+      if (window._dxOverlay) window._dxOverlay.draw();
+    }).observe(_wfWrapEl);
+  }
+
+  window.addEventListener('resize', () => {
+    if (typeof spectrum !== 'undefined') spectrum.resize();
+    syncOverlaySize();
+  });
+
+  // Span/centre change polling — spectrum.js fires no events; poll at 500 ms
+  let lastStart = null, lastSpan = null;
+  setInterval(() => {
+    if (spectrum.start_freq !== lastStart || spectrum.spanHz !== lastSpan) {
+      lastStart = spectrum.start_freq;
+      lastSpan  = spectrum.spanHz;
+      dxOverlay.draw();
+    }
+  }, 500);
+
+  // Status indicator DOM refs
+  const dxToggle = document.getElementById('dx-toggle');
+  const dxDot    = document.getElementById('dx-dot');
+  const dxStatus = document.getElementById('dx-status');
+
+  // Wire DXCluster status → dx-dot / dx-status
+  dxCluster.onStatus = (state) => {
+    if (dxDot) {
+      dxDot.classList.remove('connecting', 'off');
+      if (state !== 'connected')
+        dxDot.classList.add(state === 'reconnecting' ? 'connecting' : 'off');
+    }
+    if (dxStatus) dxStatus.textContent =
+      state === 'connected'    ? 'Connected'     :
+      state === 'reconnecting' ? 'Reconnecting…' : 'Error';
+  };
+
+  // DX toggle button
+  if (dxToggle) dxToggle.addEventListener('click', () => {
+    dxOverlay.enabled = !dxOverlay.enabled;
+    dxToggle.classList.toggle('off', !dxOverlay.enabled);
+    dxToggle.textContent = dxOverlay.enabled ? '◉ DX SPOTS' : '○ DX SPOTS';
+    if (dxDot) {
+      dxDot.classList.remove('connecting', 'off');
+      if (!dxOverlay.enabled) dxDot.classList.add('off');
+    }
+    if (dxStatus) dxStatus.textContent = dxOverlay.enabled ? 'Connected' : 'Off';
+    dxOverlay.draw();
+  });
+
+  // DX strip controls
+  const ageSelect  = document.querySelector('.dxg .sel:nth-of-type(1)');
+  const modeSelect = document.querySelector('.dxg .sel:nth-of-type(2)');
+  const bridgeInp = document.querySelector('.bridge-inp');
+  if (bridgeInp && !bridgeInp.value) bridgeInp.value = 'ws://' + window.location.hostname + ':9373';
+  const applyBtn   = document.querySelector('.bridge-inp + .icon-btn');
+
+  if (ageSelect) ageSelect.addEventListener('change', () => {
+    dxCluster.maxAge = parseInt(ageSelect.value);
+    dxCluster.purge();
+    dxOverlay.draw();
+  });
+  if (modeSelect) modeSelect.addEventListener('change', () => {
+    dxOverlay.modeFilter = modeSelect.value.toUpperCase();
+    dxOverlay.draw();
+  });
+  if (applyBtn) applyBtn.addEventListener('click', () => {
+    const url = (document.querySelector('.bridge-inp') || {value: ''}).value;
+    if (url) dxCluster.reconnect(url);
+  });
+
+  // Click-to-tune: nearest DX spot within ±2 kHz tunes the radio
+  spectrum.canvas.addEventListener('click', e => {
+    const rect   = spectrum.canvas.getBoundingClientRect();
+    const x      = e.clientX - rect.left;
+    const freqHz = spectrum.start_freq + x * (spectrum.spanHz / spectrum.canvas.width);
+    const spot   = dxCluster.nearestSpot(freqHz, 2000);
+    if (spot) {
+      const hz = spot.frequency * 1000;
+      document.getElementById('freq').value = (hz / 1000).toFixed(3);
+      ws.send('F:' + (hz / 1000).toFixed(3));  // ws = global WebSocket in radio.js L10
+      spectrum.setFrequency(hz);
+    }
+  });
+
+  dxCluster.connect();
+})();
+</script>
+
+<script>
+// ── Solar indices pill updater ─────────────────────────────────────────────
+// Fetches live solar data from DX Map API every 5 minutes.
+// setSolPill() is defined in the dx-cluster init block above.
+(function updateSolarPills() {
+  fetch('https://dxmap.hb9vqq.ch/data/eu_v4.json')
+    .then(r => r.json())
+    .then(d => {
+      const s = d.solar;
+      setSolPill('SFI',  Math.round(s.sfi),
+                         s.sfi >= 150 ? 'ok' : s.sfi >= 100 ? 'warn' : 'bad');
+      setSolPill('KP',   Math.round(s.kp),
+                         s.kp < 4 ? 'ok' : s.kp < 6 ? 'warn' : 'bad');
+      setSolPill('SWS',  Math.round(s.velocity) + ' km/s',
+                         s.velocity < 500 ? 'ok' : s.velocity < 600 ? 'warn' : 'bad');
+      setSolPill('DRAP', s.drap_sunlit < 1 ? 'CLEAR' : Math.round(s.drap_sunlit) + ' MHz',
+                         s.drap_sunlit < 10 ? 'ok' : s.drap_sunlit < 20 ? 'warn' : 'bad');
+    })
+    .catch(() => {}); // silently ignore fetch failures — pills keep last value
+  setTimeout(updateSolarPills, 5 * 60 * 1000);
+})();
+</script>
+</body>
 </html>

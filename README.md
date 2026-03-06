@@ -1,6 +1,6 @@
 # ka9q-web — HB9VQQ Fork
 
-**Fork by:** Roland Gafner, HB9VQQ  
+**Fork by:** Roland, HB9VQQ  
 **Upstream:** https://github.com/scottnewell/ka9q-web  
 **Live instances:** http://rx888.hb9vqq.ch:8081 · http://rx888.hb9vqq.ch:8082
 

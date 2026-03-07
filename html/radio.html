@@ -726,7 +726,7 @@ input[type=range]::-webkit-slider-thumb {
   </div>
   <!-- Canvas -->
   <div style="padding:6px 8px 4px;">
-    <canvas id="sMeter" width="214" height="130"
+    <canvas id="sMeter" width="214" height="155"
       style="display:block; border-radius:3px;"></canvas>
   </div>
 </div>
@@ -742,14 +742,10 @@ input[type=range]::-webkit-slider-thumb {
   <select id="colormap" style="display:none">
     <option value="9" selected>9</option>
   </select>
-  <input type="checkbox" id="cksbFrequency"        style="display:none">
-  <input type="checkbox" id="ckShowBandEdges"       style="display:none">
   <input type="number"   id="spectrumPollInput"     style="display:none" value="100">
   <input type="number"   id="csvMinuteInput"        style="display:none" value="1">
   <input type="checkbox" id="csv_out"               style="display:none">
   <span  id="msg"                                   style="display:none"></span>
-  <input type="checkbox" id="ckAnalogSMeter"        style="display:none">
-  <input type="checkbox" id="ckNoSpectrumFill"      style="display:none">
 </div>
 
 <!-- Miscellaneous spans radio.js writes into -->
@@ -1185,7 +1181,12 @@ function drawAnalogSMeter(value, mode) {
   }
 
   btn.addEventListener('click', () => visible ? hide() : show());
-  close.addEventListener('click', hide);
+  close.addEventListener('click', () => {
+    hide();
+    const ck = document.getElementById('ckAnalogSMeter');
+    if (ck) { ck.checked = false; }
+    if (typeof setAnalogMeterVisible === 'function') setAnalogMeterVisible(false);
+  });
 
   // Drag
   hdr.addEventListener('mousedown', e => {

@@ -1349,8 +1349,17 @@ function setSolPill(label, value, cssClass) {
     if (url) dxCluster.reconnect(url);
   });
 
-  // Click-to-tune: nearest DX spot within ±2 kHz tunes the radio
+  // Click-to-tune: suppress if pointer moved >4px (pan drag)
+  let _tuneDownX = 0, _tuneDownY = 0, _tuneDragged = false;
+  spectrum.canvas.addEventListener('pointerdown', e => {
+    _tuneDownX = e.clientX; _tuneDownY = e.clientY; _tuneDragged = false;
+  });
+  spectrum.canvas.addEventListener('pointermove', e => {
+    if (Math.abs(e.clientX - _tuneDownX) > 4 || Math.abs(e.clientY - _tuneDownY) > 4)
+      _tuneDragged = true;
+  });
   spectrum.canvas.addEventListener('click', e => {
+    if (_tuneDragged) return;
     const rect   = spectrum.canvas.getBoundingClientRect();
     const x      = e.clientX - rect.left;
     const freqHz = spectrum.start_freq + x * (spectrum.spanHz / spectrum.canvas.width);
@@ -1358,7 +1367,7 @@ function setSolPill(label, value, cssClass) {
     if (spot) {
       const hz = spot.frequency * 1000;
       document.getElementById('freq').value = (hz / 1000).toFixed(3);
-      ws.send('F:' + (hz / 1000).toFixed(3));  // ws = global WebSocket in radio.js L10
+      ws.send('F:' + (hz / 1000).toFixed(3));
       spectrum.setFrequency(hz);
     }
   });

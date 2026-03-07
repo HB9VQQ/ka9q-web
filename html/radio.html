@@ -996,7 +996,7 @@ setInterval(tick,1000); tick();
 
 
 // ── Callsign uppercase ──
-document.querySelector('.call-inp').addEventListener('input',function(){
+const _callInp = document.querySelector('.call-inp'); if (_callInp) _callInp.addEventListener('input',function(){
   const s=this.selectionStart;
   this.value=this.value.toUpperCase();
   this.setSelectionRange(s,s);
@@ -1362,7 +1362,7 @@ function setSolPill(label, value, cssClass) {
     if (_tuneDragged) return;
     const rect   = spectrum.canvas.getBoundingClientRect();
     const x      = e.clientX - rect.left;
-    const freqHz = spectrum.start_freq + x * (spectrum.spanHz / spectrum.canvas.width);
+    const freqHz = spectrum.start_freq + x * (spectrum.spanHz / rect.width);
     const spot   = dxCluster.nearestSpot(freqHz, 2000);
     if (spot) {
       const hz = spot.frequency * 1000;

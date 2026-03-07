@@ -578,22 +578,22 @@
 
     function startIncrement(multiplier = 1) {
         incrementFrequency(multiplier);
-        counter=setInterval(function() { incrementFrequency(multiplier); },200);
+        counter = setTimeout(function() { counter = setInterval(function() { incrementFrequency(multiplier); }, 150); }, 400);
         saveSettings();
     }
 
     function stopIncrement() {
-        clearInterval(counter);
+        clearTimeout(counter); clearInterval(counter);
     }
 
     function startDecrement(multiplier = 1) {
         decrementFrequency(multiplier);
-        counter=setInterval(function() { decrementFrequency(multiplier); },200);
+        counter = setTimeout(function() { counter = setInterval(function() { decrementFrequency(multiplier); }, 150); }, 400);
         saveSettings();
     }
 
     function stopDecrement() {
-        clearInterval(counter);
+        clearTimeout(counter); clearInterval(counter);
     }
 
     // ...existing code...

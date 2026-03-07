@@ -720,14 +720,22 @@ input[type=range]::-webkit-slider-thumb {
     background:var(--ink3); padding:4px 8px; border-radius:6px 6px 0 0;
     cursor:move; border-bottom:1px solid var(--rule);">
     <span style="font-family:var(--f-ui);font-size:9px;font-weight:600;letter-spacing:0.14em;color:var(--teal-dim);">S-METER</span>
+    <div style="display:flex;gap:3px;align-items:center;">
+      <button id="smeter-mode-analog" onclick="setSMeterMode('analog')" style="font-size:8px;padding:1px 5px;cursor:pointer;border-radius:2px;background:#1a2a3a;color:#00d4c8;border:1px solid #00d4c8;">∿</button>
+      <button id="smeter-mode-digital" onclick="setSMeterMode('digital')" style="font-size:8px;padding:1px 5px;cursor:pointer;border-radius:2px;background:transparent;color:#2a4a5a;border:1px solid #2a4a5a;">▤</button>
+    </div>
     <button id="smeter-float-close" style="
       background:none; border:none; color:var(--txt-dim); font-size:13px;
       cursor:pointer; padding:0 2px; line-height:1;" title="Close">✕</button>
   </div>
-  <!-- Canvas -->
-  <div style="padding:6px 8px 4px;">
+  <!-- Mode toggle (in title bar) -->
+  <div id="smeter-analog-wrap" style="padding:6px 8px 4px;">
     <canvas id="sMeter" width="214" height="155"
       style="display:block; border-radius:3px;"></canvas>
+  </div>
+  <div id="smeter-digital-wrap" style="display:none; padding:6px 8px 4px;">
+    <canvas id="sMeterDigital" width="214" height="90"
+      style="display:block; border-radius:3px; background:#111a00; border:1px solid #2a3a00;"></canvas>
   </div>
 </div>
 

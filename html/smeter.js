@@ -229,8 +229,12 @@ function createUpdateSMeter() {
         // Draw the border
         ctx.strokeRect(0, 0, cWidth, cHeight);
         // Draw analog S-meter if enabled
-        if (typeof drawAnalogSMeter === "function" && typeof enableAnalogSMeter !== "undefined" && enableAnalogSMeter) {
-            drawAnalogSMeter(SignalLevel, SignalToNoiseRatio);
+        if (typeof enableAnalogSMeter !== "undefined" && enableAnalogSMeter) {
+            if (typeof _smeterMode !== "undefined" && _smeterMode === "digital") {
+                drawDigitalSMeter(SignalLevel, SignalToNoiseRatio);
+            } else {
+                drawAnalogSMeter(SignalLevel, SignalToNoiseRatio);
+            }
         }
 
         return power2dB(noise_power);
@@ -303,127 +307,171 @@ function drawAnalogSMeter(signalStrength, snr) {
     const canvas = document.getElementById("sMeter");
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H * 0.65, R = W * 0.43;
 
-    // For a 220px wide canvas, center at 110
-    const centerX = 110;
-    const centerY = 110;
-    const radius = 100;
+    ctx.clearRect(0, 0, W, H);
 
-    ctx.fillStyle = getComputedStyle(document.body).backgroundColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Radial background
+    const bg = ctx.createRadialGradient(cx, cy, R*0.1, cx, cy, R*1.3);
+    bg.addColorStop(0, '#162016'); bg.addColorStop(1, '#060c06');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(cx, cy, R*1.12, Math.PI, 2*Math.PI);
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
 
-    // Meter background (draw arc over the rectangle)
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, Math.PI, 2 * Math.PI);
-    ctx.fill();
+    // Bezel ring
+    ctx.beginPath(); ctx.arc(cx, cy, R*1.1, Math.PI, 2*Math.PI);
+    ctx.strokeStyle = '#2a4a2a'; ctx.lineWidth = 4; ctx.stroke();
 
-    // Outer arc in
-    ctx.strokeStyle = getComputedStyle(document.body).color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, Math.PI, 2 * Math.PI);
-    ctx.stroke();
+    // White arc S1-S9
+    ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, Math.PI*1.5);
+    ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 6; ctx.stroke();
 
-    // Red arc for S9+ region (right half)
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, Math.PI * 1.5, 2 * Math.PI);
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-    // Scale markings with correct calibration
-    ctx.fillStyle = getComputedStyle(document.body).color;
-    ctx.font = "14px Arial";
+    // Red arc S9+
+    ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI*1.5, 2*Math.PI);
+    ctx.strokeStyle = '#cc2200'; ctx.lineWidth = 6; ctx.stroke();
+
+    // Red glow
+    ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI*1.5, 2*Math.PI);
+    ctx.strokeStyle = 'rgba(255,50,0,0.15)'; ctx.lineWidth = 14; ctx.stroke();
+
     const scale = [
-    { label: "S1",   fraction: 0.0 },
-    { label: "S3",   fraction: 0.125 },
-    { label: "S5",   fraction: 0.25 },
-    { label: "S7",   fraction: 0.375 },
-    { label: "S9",   fraction: 0.5 },
-    // ...right side unchanged...
-    { label: "+20",  fraction: 0.5 + (20/60)*0.5 },
-    { label: "+40",  fraction: 0.5 + (40/60)*0.5 },
-    { label: "+60",  fraction: 1.0 }
-    ];  
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < scale.length; i++) {
-        let angle = Math.PI + (Math.PI * scale[i].fraction);
-        const isOverS9 = scale[i].fraction > 0.5;
-        // Tick mark on arc
-        ctx.strokeStyle = isOverS9 ? 'red' : getComputedStyle(document.body).color;
-        ctx.lineWidth = 0.5;
-        ctx.beginPath();
-        ctx.moveTo(centerX + 98 * Math.cos(angle), centerY + 98 * Math.sin(angle));
-        ctx.lineTo(centerX + 82 * Math.cos(angle), centerY + 82 * Math.sin(angle));
-        ctx.stroke();
-        // Label inside arc
-        ctx.fillStyle = isOverS9 ? 'red' : getComputedStyle(document.body).color;
-        let x = centerX + 70 * Math.cos(angle);
-        let y = centerY + 70 * Math.sin(angle);
-        ctx.fillText(scale[i].label, x, y);
-    }
-    ctx.fillStyle = getComputedStyle(document.body).color;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
+        {l:'S1',f:0},{l:'S3',f:0.125},{l:'S5',f:0.25},{l:'S7',f:0.375},{l:'S9',f:0.5},
+        {l:'+20',f:0.667},{l:'+40',f:0.833},{l:'+60',f:1.0}
+    ];
 
-    // --- Corrected scaling for the needle ---
-    // S1 (-127 dBm) to S9 (-73 dBm): 54 dB span, 6 dB per S-unit
-    // S9 (-73 dBm) to +60 (-13 dBm): 60 dB span, 1 dB per fraction of arc
+    // Minor + major ticks
+    for (let i = 0; i <= 16; i++) {
+        const f = i/16, a = Math.PI + Math.PI*f;
+        const isMaj = scale.some(s => Math.abs(s.f - f) < 0.01);
+        ctx.beginPath();
+        ctx.moveTo(cx + R*Math.cos(a), cy + R*Math.sin(a));
+        ctx.lineTo(cx + (isMaj ? R*0.80 : R*0.88)*Math.cos(a), cy + (isMaj ? R*0.80 : R*0.88)*Math.sin(a));
+        ctx.strokeStyle = f > 0.5 ? '#993311' : '#999999';
+        ctx.lineWidth = isMaj ? 1.5 : 0.8; ctx.stroke();
+    }
+
+    // Labels
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const s of scale) {
+        const a = Math.PI + Math.PI*s.f;
+        ctx.font = `bold ${s.f > 0.5 ? '9' : '10'}px monospace`;
+        ctx.fillStyle = s.f > 0.5 ? '#ff5533' : '#dddddd';
+        ctx.fillText(s.l, cx + R*0.65*Math.cos(a), cy + R*0.65*Math.sin(a));
+    }
+
+    // Needle fraction
     let fraction;
     if (signalStrength <= -73) {
-        // S1 to S9: left half of arc, 8 steps (S1=0, S9=8)
-        let s_unit = (signalStrength + 127) / 6 - 1;
-        if (s_unit < 0) s_unit = 0;
-        if (s_unit > 8) s_unit = 8;
-        fraction = (s_unit / 8) * 0.5;
+        let su = Math.max(0, Math.min(8, (signalStrength + 127) / 6 - 1));
+        fraction = su / 8 * 0.5;
     } else if (signalStrength >= -13) {
-        // At or above +60: rightmost
         fraction = 1;
     } else {
-        // Above S9: right half of arc, linear in dB
-        fraction = 0.5 + ((signalStrength + 73) / 60) * 0.5; // 0.5 to 1, linear in dB
+        fraction = 0.5 + ((signalStrength + 73) / 60) * 0.5;
     }
-    if (fraction < 0) fraction = 0;
-    if (fraction > 1) fraction = 1;
+    fraction = Math.max(0, Math.min(1, fraction));
+    const na = Math.PI + Math.PI * fraction;
 
-    const minAngle = Math.PI;
-    const maxAngle = 2 * Math.PI;
-    const angle = minAngle + (maxAngle - minAngle) * fraction;
-
-    // Draw needle
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 2;
+    // Needle with shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
     ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.lineTo(centerX + 70 * Math.cos(angle), centerY + 70 * Math.sin(angle));
-    ctx.stroke();
+    ctx.moveTo(cx - R*0.1*Math.cos(na), cy - R*0.1*Math.sin(na));
+    ctx.lineTo(cx + R*0.85*Math.cos(na), cy + R*0.85*Math.sin(na));
+    const ng = ctx.createLinearGradient(cx, cy, cx + R*0.85*Math.cos(na), cy + R*0.85*Math.sin(na));
+    ng.addColorStop(0, '#ff6600'); ng.addColorStop(1, '#ff2200');
+    ctx.strokeStyle = ng; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.restore();
 
-    // Draw arrowhead at the tip of the needle
-    const tipX = centerX + 70 * Math.cos(angle);
-    const tipY = centerY + 70 * Math.sin(angle);
-    const arrowLength = 12; // length of the arrowhead sides
-    const arrowAngle = Math.PI / 12; // angle between needle and arrowhead sides
+    // Pivot
+    const piv = ctx.createRadialGradient(cx-2, cy-2, 1, cx, cy, 8);
+    piv.addColorStop(0, '#6a9a6a'); piv.addColorStop(1, '#1a2a1a');
+    ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 2*Math.PI);
+    ctx.fillStyle = piv; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 2*Math.PI);
+    ctx.strokeStyle = '#2a5a2a'; ctx.lineWidth = 1.5; ctx.stroke();
 
-    // Left side of arrowhead
-    ctx.beginPath();
-    ctx.moveTo(tipX, tipY);
-    ctx.lineTo(
-        tipX - arrowLength * Math.cos(angle - arrowAngle),
-        tipY - arrowLength * Math.sin(angle - arrowAngle)
-    );
-    ctx.stroke();
-
-    // Right side of arrowhead
-    ctx.beginPath();
-    ctx.moveTo(tipX, tipY);
-    ctx.lineTo(
-        tipX - arrowLength * Math.cos(angle + arrowAngle),
-        tipY - arrowLength * Math.sin(angle + arrowAngle)
-    );
-    ctx.stroke();
-
-    // Value text
-    ctx.fillStyle = getComputedStyle(document.body).color;
-    ctx.font = "11px Arial";
-    ctx.textAlign = 'center'; ctx.fillText(`Signal Power: ${Math.round(signalStrength)} dBm`, canvas.width / 2, 128); ctx.fillText(`SNR: ${(snr <= 0) ? 'N/A' : Math.round(snr) + ' dB'}`, canvas.width / 2, 142);
+    // Text
+    ctx.font = '11px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#88bb88';
+    ctx.fillText(`Signal: ${Math.round(signalStrength)} dBm`, cx, H - 18);
+    ctx.fillStyle = snr > 0 ? '#aaddaa' : '#445544';
+    ctx.fillText(`SNR: ${snr > 0 ? Math.round(snr) + ' dB' : 'N/A'}`, cx, H - 5);
 }
+// ── Digital S-meter ──
+let _smeterMode = localStorage.getItem('smeterMode') || 'analog';
+
+function setSMeterMode(mode) {
+  _smeterMode = mode;
+  localStorage.setItem('smeterMode', mode);
+  const aw = document.getElementById('smeter-analog-wrap');
+  const dw = document.getElementById('smeter-digital-wrap');
+  const ba = document.getElementById('smeter-mode-analog');
+  const bd = document.getElementById('smeter-mode-digital');
+  if (mode === 'analog') {
+    aw.style.display = ''; dw.style.display = 'none';
+    if (ba) { ba.style.background='#1a2a3a'; ba.style.color='#00d4c8'; ba.style.borderColor='#00d4c8'; }
+    if (bd) { bd.style.background='transparent'; bd.style.color='#2a4a5a'; bd.style.borderColor='#2a4a5a'; }
+  } else {
+    aw.style.display = 'none'; dw.style.display = '';
+    if (bd) { bd.style.background='#1a2a3a'; bd.style.color='#00d4c8'; bd.style.borderColor='#00d4c8'; }
+    if (ba) { ba.style.background='transparent'; ba.style.color='#2a4a5a'; ba.style.borderColor='#2a4a5a'; }
+  }
+}
+
+function drawDigitalSMeter(signal, snr) {
+    // Apply same smoothing as analog meter
+    _smoothedSignal = (_smoothedSignal === null) ? signal : _smoothedSignal * (1 - _SMOOTH) + signal * _SMOOTH;
+    if (snr > 0) _smoothedSNR = (_smoothedSNR === null) ? snr : _smoothedSNR * (1 - _SMOOTH) + snr * _SMOOTH;
+    signal = _smoothedSignal;
+    snr = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
+  const canvas = document.getElementById('sMeterDigital');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  ctx.fillStyle = '#111a00';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = '#2a3a00'; ctx.lineWidth = 1;
+  ctx.strokeRect(0.5,0.5,W-1,H-1);
+
+  let fraction;
+  if (signal <= -73) { let su=Math.max(0,Math.min(8,(signal+127)/6-1)); fraction=su/8*0.5; }
+  else if (signal >= -13) { fraction=1; }
+  else { fraction=0.5+((signal+73)/60)*0.5; }
+  fraction = Math.max(0,Math.min(1,fraction));
+
+  let sLabel;
+  if (signal <= -73) { sLabel = 'S' + Math.max(1,Math.round((signal+127)/6)); }
+  else { sLabel = 'S9+' + Math.round(signal+73); }
+
+  ctx.font = 'bold 38px monospace';
+  ctx.fillStyle = signal > -73 ? '#cc4400' : '#88cc00';
+  ctx.textAlign = 'center';
+  ctx.fillText(sLabel, W/2, 48);
+
+  ctx.font = '11px monospace'; ctx.fillStyle = '#557700'; ctx.textAlign = 'right';
+  ctx.fillText(Math.round(signal) + ' dBm', W-8, 64);
+
+  ctx.font = '11px monospace'; ctx.fillStyle = snr>0?'#aabb00':'#556600'; ctx.textAlign = 'left';
+  ctx.fillText('SNR: ' + (snr>0 ? Math.round(snr)+' dB' : 'N/A'), 8, 64);
+
+  ctx.fillStyle = '#0d1500';
+  ctx.fillRect(8, 70, W-16, 10);
+  const barColor = fraction>0.75?'#cc4400':fraction>0.5?'#aaaa00':'#44aa00';
+  ctx.fillStyle = barColor;
+  ctx.fillRect(8, 70, (W-16)*fraction, 10);
+
+  // Scale ticks on bar
+  const ticks = [0, 0.125, 0.25, 0.375, 0.5, 0.667, 0.833, 1.0];
+  for (const f of ticks) {
+    const x = 8 + (W-16)*f;
+    ctx.fillStyle = '#2a3a00';
+    ctx.fillRect(x-0.5, 70, 1, 10);
+  }
+}
+
+// Init mode on load
+document.addEventListener('DOMContentLoaded', () => setSMeterMode(_smeterMode));

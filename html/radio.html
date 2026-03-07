@@ -1363,6 +1363,77 @@ function setSolPill(label, value, cssClass) {
     _tuneDownX = e.clientX; _tuneDownY = e.clientY; _tuneDragged = false;
     if (window._dxOverlay) window._dxOverlay._labelBoxes = [];
   });
+
+  // ── Filter bar drag ──
+  (function() {
+    let _filterDrag = null; // null | 'low' | 'high' | 'center'
+    let _filterStartX = 0, _filterStartLow = 0, _filterStartHigh = 0, _filterStartFreq = 0;
+    const EDGE_TOL = 8; // px hit tolerance for edges
+
+    function getFilterXs() {
+      const cssW = spectrum.canvas.getBoundingClientRect().width;
+      const hzpp = spectrum.spanHz / cssW;
+      const x0 = ((spectrum.frequency - spectrum.start_freq) + spectrum.filter_low) / hzpp;
+      const x1 = ((spectrum.frequency - spectrum.start_freq) + spectrum.filter_high) / hzpp;
+      return { x0, x1, hzpp };
+    }
+
+    spectrum.canvas.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;
+      const mx = e.offsetX;
+      const { x0, x1, hzpp } = getFilterXs();
+      const low  = parseFloat(document.getElementById('filterLowInput').value);
+      const high = parseFloat(document.getElementById('filterHighInput').value);
+      // Only capture center drag (not edges)
+      if (mx < x0 + EDGE_TOL || mx > x1 - EDGE_TOL) {
+        _filterDrag = null; return;
+      }
+      _filterDrag = 'center';
+      _filterStartX = mx;
+      _filterStartLow = low;
+      _filterStartHigh = high;
+      _filterStartFreq = spectrum.frequency;
+      window._suppressSpectrumClick = true;
+      e.stopImmediatePropagation();
+    }, true); // capture phase — fires before spectrum.js
+
+    window.addEventListener('mousemove', function(e) {
+      if (!_filterDrag) return;
+      const rect = spectrum.canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const cssW = rect.width;
+      const hzpp = spectrum.spanHz / cssW;
+      const dHz = (mx - _filterStartX) * hzpp;
+      const lowEl  = document.getElementById('filterLowInput');
+      const highEl = document.getElementById('filterHighInput');
+      if (_filterDrag === 'center') {
+        const newFreq = _filterStartFreq + dHz;
+        const step = parseFloat(document.getElementById('step').value) || 100;
+        const snapped = Math.round(newFreq / step) * step;
+        const snapped_khz = snapped / 1000;
+        document.getElementById('freq').value = snapped_khz.toFixed(3);
+        spectrum.frequency = snapped;
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send('F:' + snapped_khz.toFixed(3));
+      }
+    });
+
+    window.addEventListener('mouseup', function(e) {
+      if (!_filterDrag) return;
+      _filterDrag = null;
+    });
+
+    // Change cursor on hover over filter edges/center
+    spectrum.canvas.addEventListener('mousemove', function(e) {
+      if (_filterDrag) return;
+      const mx = e.offsetX;
+      const { x0, x1 } = getFilterXs();
+      if (mx > x0 + EDGE_TOL && mx < x1 - EDGE_TOL) {
+        spectrum.canvas.style.cursor = 'grab';
+      } else {
+        spectrum.canvas.style.cursor = '';
+      }
+    });
+  })();
   spectrum.canvas.addEventListener('pointermove', e => {
     if (Math.abs(e.clientX - _tuneDownX) > 4 || Math.abs(e.clientY - _tuneDownY) > 4)
       _tuneDragged = true;

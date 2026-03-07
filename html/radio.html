@@ -1353,6 +1353,7 @@ function setSolPill(label, value, cssClass) {
   let _tuneDownX = 0, _tuneDownY = 0, _tuneDragged = false;
   spectrum.canvas.addEventListener('pointerdown', e => {
     _tuneDownX = e.clientX; _tuneDownY = e.clientY; _tuneDragged = false;
+    if (window._dxOverlay) window._dxOverlay._labelBoxes = [];
   });
   spectrum.canvas.addEventListener('pointermove', e => {
     if (Math.abs(e.clientX - _tuneDownX) > 4 || Math.abs(e.clientY - _tuneDownY) > 4)
@@ -1362,9 +1363,11 @@ function setSolPill(label, value, cssClass) {
     if (_tuneDragged) return;
     const rect   = spectrum.canvas.getBoundingClientRect();
     const x      = e.clientX - rect.left;
+    const y      = e.clientY - rect.top;
     const freqHz = spectrum.start_freq + x * (spectrum.spanHz / rect.width);
-    const spot   = dxCluster.nearestSpot(freqHz, 2000);
+    const spot   = (window._dxOverlay && window._dxOverlay.spotAtPoint(x, y)) || dxCluster.nearestSpot(freqHz, 2000);
     if (spot) {
+      window._suppressSpectrumClick = true;
       const hz = spot.frequency * 1000;
       document.getElementById('freq').value = (hz / 1000).toFixed(3);
       ws.send('F:' + (hz / 1000).toFixed(3));

@@ -334,11 +334,14 @@ function Spectrum(id, options) {
                         spectrum.drawSpectrumWaterfall(spectrum.bin_copy, false);
                     }
                 } else {
+                    if (window._suppressSpectrumClick) { window._suppressSpectrumClick = false; }
+                    else {
                     document.getElementById("freq").value = snapped_khz.toFixed(3);
                     ws.send("F:" + snapped_khz.toFixed(3));
                     spectrum.frequency = snapped_khz * 1000;
                     if (spectrum.bin_copy) {
                         spectrum.drawSpectrumWaterfall(spectrum.bin_copy, false);
+                    }
                     }
                 }
             } else if (leftDragStarted) {

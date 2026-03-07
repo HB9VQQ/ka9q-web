@@ -78,6 +78,12 @@ window.DXOverlay = class DXOverlay {
     this._canvas = canvas; this._ctx = canvas.getContext('2d');
     this._cluster = cluster; this._spectrum = spectrumRef;
     this.enabled = true; this.modeFilter = 'ALL';
+    this._labelBoxes = [];
+  }
+  spotAtPoint(cx, cy) {
+    for (const b of this._labelBoxes)
+      if (cx >= b.x1 && cx <= b.x2 && cy >= b.y1 && cy <= b.y2) return b.spot;
+    return null;
   }
   _modeColor(mode) {
     switch (mode) {
@@ -115,6 +121,7 @@ window.DXOverlay = class DXOverlay {
       vis.push({ spot, x });
     }
     vis.sort((a, b) => a.x - b.x);
+    this._labelBoxes = [];
     const specH = Math.round((canvas.height/dpr) * (this._spectrum.spectrumPercent || 50) / 100);
     const ROW_H = 14, Y0 = 42, ROWS = 3;
     const usedRows = [];
@@ -154,6 +161,8 @@ window.DXOverlay = class DXOverlay {
       ctx.textBaseline = 'top';
       ctx.fillStyle = color;
       ctx.fillText(lbl, Math.round(x) + 2, Math.round(labelY));
+      const tw = ctx.measureText(lbl).width;
+      this._labelBoxes.push({ x1: Math.round(x) - 4, y1: Math.round(labelY) - 4, x2: Math.round(x) + 2 + tw + 4, y2: Math.round(labelY) + 20, spot });
     });
     ctx.globalAlpha = 1;
     const countEl = document.getElementById('dx-count');

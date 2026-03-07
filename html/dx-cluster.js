@@ -90,7 +90,8 @@ window.DXOverlay = class DXOverlay {
     }
   }
   freqToX(freqHz) {
-    const hz_per_pixel = this._spectrum.spanHz / this._spectrum.canvas.width;
+    const dpr = this._canvas._dpr || window.devicePixelRatio || 1;
+    const hz_per_pixel = this._spectrum.spanHz / (this._spectrum.canvas.width / dpr);
     if (!hz_per_pixel) return -1;
     return Math.round((freqHz - this._spectrum.start_freq) / hz_per_pixel);
   }

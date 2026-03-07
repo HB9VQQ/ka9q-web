@@ -1832,7 +1832,7 @@ function initializeDialogEventListeners() {
     // Position the dialog just below the launch button
     optionsDialog.style.position = 'fixed';
     optionsDialog.style.transform = 'none';
-    optionsDialog.style.left = `${Math.min(buttonRect.left, window.innerWidth - 340)}px`;
+    optionsDialog.style.left = `${Math.min(buttonRect.left, window.innerWidth - optionsDialog.offsetWidth - 10)}px`;
     optionsDialog.style.top = 'auto';
     optionsDialog.style.bottom = `${window.innerHeight - buttonRect.top + 10}px`;
 

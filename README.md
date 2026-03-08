@@ -9,61 +9,79 @@
 ## What's new in this fork
 
 ### Dark theme UI (`radio.html`)
-- Full dark theme with teal/amber/violet accent colors and scanline texture
-- Solar indices bar: SFI, A, K, Kp, SWS, DRAP — live data from dxmap.hb9vqq.ch
-- UTC clock in header
-- Band selector with Amateur / Broadcast / Utility categories
-- Mode auto-switching by frequency (LSB below 10 MHz, USB above)
-- Improved Options dialog styling and positioning
-- Frequency input Enter-to-tune support
-- Resizable spectrum/waterfall with live DX overlay tracking
+
+* Full dark theme with teal/amber/violet accent colors and scanline texture
+* Solar indices bar: SFI, A, K, Kp, SWS, DRAP — live data from dxmap.hb9vqq.ch
+* UTC clock in header
+* Band selector with Amateur / Broadcast / Utility categories
+* Mode auto-switching by frequency (LSB below 10 MHz, USB above)
+* Improved Options dialog styling and positioning
+* Frequency input Enter-to-tune support
+* Resizable spectrum/waterfall with live DX overlay tracking
+* **Passband drag** — drag the grey passband bar to retune frequency
+* **Click-to-tune on DX spots** — click any callsign label to tune to that frequency
+
+### Analog S-meter (`smeter.js`)
+
+* Green vintage style: radial gradient background, bezel ring, minor tick marks
+* Gradient needle with drop shadow and pivot circle
+* **Digital LCD mode** — toggle between analog gauge and digital S-unit display
+* Mode toggle buttons (∿ / ▤) in the S-meter title bar, persisted in localStorage
+* EMA smoothing on both analog and digital modes
 
 ### DX cluster spot overlay (`dx-cluster.js`)
-- Live DX cluster spots overlaid on the spectrum as vertical dashed lines
-- Callsign labels with ◇ prefix, color-coded by mode:
+
+* Live DX cluster spots overlaid on the spectrum as vertical dashed lines
+* Callsign labels with ◇ prefix, color-coded by mode:
   - CW: cyan · SSB: yellow · FT8/FT4: magenta · RTTY: orange
-- Age fade over configurable window (default 30 min)
-- Row staggering for overlapping spots
-- Downward arrow at spectrum/waterfall boundary
-- Click-to-tune on spot frequency
-- Mode filter (ALL / CW / SSB / FT8 / FT4 / RTTY)
-- Spot count display
-- Reconnecting WebSocket with exponential backoff
+* Age fade over configurable window (default 30 min)
+* Row staggering for overlapping spots
+* Downward arrow at spectrum/waterfall boundary
+* Click-to-tune on spot frequency
+* Mode filter (ALL / CW / SSB / FT8 / FT4 / RTTY)
+* Spot count display
+* Reconnecting WebSocket with exponential backoff
 
 ### DX cluster bridge (`dx-cluster-bridge.py`)
-- Python asyncio bridge: DX Spider telnet → WebSocket JSON
-- Connects to configurable DX cluster (default: dxcluster.hb9vqq.ch:7300)
-- Serves spots as JSON on ws://host:9373
-- In-memory spot cache with age pruning
-- FT8/FT4 mode inference from frequency windows
-- Systemd service included (`dx-cluster-bridge.service`)
 
-### Spectrum fixes (`spectrum.js`)
-- dBm axis labels corrected (negative sign)
+* Python asyncio bridge: DX Spider telnet → WebSocket JSON
+* Connects to configurable DX cluster (default: dxcluster.hb9vqq.ch:7300)
+* Serves spots as JSON on ws://host:9373
+* In-memory spot cache with age pruning
+* FT8/FT4 mode inference from frequency windows
+* Systemd service included (`dx-cluster-bridge.service`)
+
+### spectrum.js fixes
+
+* Click-to-tune suppression flag so spot clicks are not overridden by spectrum pan handler
 
 ### radio.js patches
-- `-n` argument underscores display as spaces in heading and tab title
+
+* `-n` argument underscores display as spaces in heading and tab title
 
 ---
 
 ## Deployment
 
 ### Requirements
-- Python 3.10+: `sudo apt install python3-websockets`
-- All other dependencies unchanged from upstream
+
+* Python 3.10+: `sudo apt install python3-websockets`
+* All other dependencies unchanged from upstream
 
 ### Files
+
 | File | Location |
-|------|----------|
+|---|---|
 | `html/radio.html` | `/usr/local/share/ka9q-web/html/` |
 | `html/radio.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/dx-cluster.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/smeter.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/spectrum.js` | `/usr/local/share/ka9q-web/html/` |
 | `dx-cluster-bridge.py` | `/usr/local/bin/` |
 | `dx-cluster-bridge.service` | `/etc/systemd/system/` |
 
 ### Bridge service
-```bash
+```
 sudo cp dx-cluster-bridge.py /usr/local/bin/
 sudo chmod +x /usr/local/bin/dx-cluster-bridge.py
 sudo cp dx-cluster-bridge.service /etc/systemd/system/
@@ -84,5 +102,5 @@ sudo ufw allow 9373/tcp comment "DX cluster WS bridge"
 ---
 
 ## Known issues / TODO
-- Cosmetic polish on controls strip
-- GitHub Actions CI not yet configured for this fork
+
+* GitHub Actions CI not yet configured for this fork

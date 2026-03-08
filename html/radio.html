@@ -621,6 +621,7 @@ input[type=range]::-webkit-slider-thumb {
     <div class="cg-title">Tools</div>
     <div class="crow">
       <button class="cbtn purple" id="OptionsButton" title="Additional options">⚙ Options</button>
+      <button class="cbtn" onclick="document.getElementById('help-modal').style.display='flex'" title="Help" style="padding:3px 8px">? Help</button>
       <button class="cbtn" id="toggleRecording" onclick="toggleAudioRecording()" style="padding:3px 8px">⏺ Record</button>
       <button class="cbtn" style="padding:3px 7px" title="Toggle fullscreen (or press F)"
               onclick="if(document.fullscreenElement)document.exitFullscreen();else document.getElementById('waterfall').requestFullscreen()">⛶</button>
@@ -1479,6 +1480,66 @@ function setSolPill(label, value, cssClass) {
     .catch(() => {}); // silently ignore fetch failures — pills keep last value
   setTimeout(updateSolarPills, 5 * 60 * 1000);
 })();
+</script>
+<div id="help-modal" style="
+  display:none; position:fixed; inset:0; z-index:1000;
+  background:rgba(0,0,0,0.75); align-items:center; justify-content:center;">
+  <div style="
+    background:#0d1a0d; border:1px solid #1e3a1e; border-radius:8px;
+    padding:20px 24px; max-width:560px; width:90%; max-height:80vh;
+    overflow-y:auto; box-shadow:0 8px 40px rgba(0,0,0,0.9);
+    font-family:monospace; color:#aaccaa; position:relative;">
+    <button onclick="document.getElementById('help-modal').style.display='none'"
+      style="position:absolute;top:8px;right:12px;background:none;border:none;
+             color:#557755;font-size:16px;cursor:pointer;">✕</button>
+    <div style="font-size:11px;font-weight:600;letter-spacing:0.15em;color:#00d4c8;margin-bottom:14px;">HELP — HB9VQQ ka9q-web</div>
+
+    <div style="color:#00d4c8;font-size:10px;letter-spacing:0.1em;margin:10px 0 6px;">MOUSE</div>
+    <table style="width:100%;font-size:11px;border-collapse:collapse;">
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Left drag spectrum</td><td style="color:#aaaaaa;">Pan frequency</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Right drag spectrum</td><td style="color:#aaaaaa;">Tune frequency</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Left click spectrum</td><td style="color:#aaaaaa;">Tune to click frequency</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Drag passband bar</td><td style="color:#aaaaaa;">Retune frequency</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Click DX callsign</td><td style="color:#aaaaaa;">Tune to spot frequency</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Mouse wheel</td><td style="color:#aaaaaa;">Zoom in/out</td></tr>
+    </table>
+
+    <div style="color:#00d4c8;font-size:10px;letter-spacing:0.1em;margin:10px 0 6px;">KEYBOARD — works in fullscreen (except F)</div>
+    <table style="width:100%;font-size:11px;border-collapse:collapse;">
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;width:80px;">F</td><td style="color:#aaaaaa;">Toggle fullscreen (always)</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Space</td><td style="color:#aaaaaa;">Pause / resume spectrum</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">C</td><td style="color:#aaaaaa;">Toggle color scheme</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">M</td><td style="color:#aaaaaa;">Toggle Max Hold</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">A</td><td style="color:#aaaaaa;">Autoscale</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">Z</td><td style="color:#aaaaaa;">Center spectrum on tuned frequency</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">I / O</td><td style="color:#aaaaaa;">Zoom in / out</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">S / W</td><td style="color:#aaaaaa;">Increase / decrease spectrum height</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">+ / −</td><td style="color:#aaaaaa;">Increase / decrease averaging</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">↑ / ↓</td><td style="color:#aaaaaa;">Baseline up / down</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">← / →</td><td style="color:#aaaaaa;">Range decrease / increase</td></tr>
+    </table>
+
+    <div style="color:#00d4c8;font-size:10px;letter-spacing:0.1em;margin:10px 0 6px;">DX CLUSTER COLORS</div>
+    <table style="width:100%;font-size:11px;border-collapse:collapse;">
+      <tr><td style="color:#00ffff;padding:2px 8px 2px 0;">■ Cyan</td><td style="color:#aaaaaa;">CW</td></tr>
+      <tr><td style="color:#ffff00;padding:2px 8px 2px 0;">■ Yellow</td><td style="color:#aaaaaa;">SSB</td></tr>
+      <tr><td style="color:#ff40ff;padding:2px 8px 2px 0;">■ Magenta</td><td style="color:#aaaaaa;">FT8 / FT4</td></tr>
+      <tr><td style="color:#ff8800;padding:2px 8px 2px 0;">■ Orange</td><td style="color:#aaaaaa;">RTTY</td></tr>
+      <tr><td style="color:#888888;padding:2px 8px 2px 0;">■ Grey</td><td style="color:#aaaaaa;">Other</td></tr>
+    </table>
+
+    <div style="color:#557755;font-size:9px;margin-top:14px;">rx888.hb9vqq.ch — HB9VQQ — github.com/HB9VQQ/ka9q-web</div>
+  </div>
+</div>
+<script>
+  // Close help modal on click outside
+  document.getElementById('help-modal').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+  });
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') document.getElementById('help-modal').style.display = 'none';
+  });
 </script>
 </body>
 </html>

@@ -1516,7 +1516,8 @@ function setSolPill(label, value, cssClass) {
       <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">S / W</td><td style="color:#aaaaaa;">Increase / decrease spectrum height</td></tr>
       <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">+ / −</td><td style="color:#aaaaaa;">Increase / decrease averaging</td></tr>
       <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">↑ / ↓</td><td style="color:#aaaaaa;">Baseline up / down</td></tr>
-      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">← / →</td><td style="color:#aaaaaa;">Range decrease / increase</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">← / →</td><td style="color:#aaaaaa;">Tune frequency by selected step (always)</td></tr>
+      <tr><td style="color:#88bb88;padding:2px 8px 2px 0;">← / → (fullscreen)</td><td style="color:#aaaaaa;">Range decrease / increase</td></tr>
     </table>
 
     <div style="color:#00d4c8;font-size:10px;letter-spacing:0.1em;margin:10px 0 6px;">DX CLUSTER COLORS</div>
@@ -1539,6 +1540,19 @@ function setSolPill(label, value, cssClass) {
   // Close on Escape
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') document.getElementById('help-modal').style.display = 'none';
+    // Arrow keys tune frequency by step (skip if focus is on an input)
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      const tag = document.activeElement ? document.activeElement.tagName : '';
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      const step = parseFloat(document.getElementById('step').value) || 100;
+      const cur = parseFloat(document.getElementById('freq').value) * 1000 || spectrum.frequency;
+      const newFreq = cur + (e.key === 'ArrowRight' ? step : -step);
+      const newKhz = (newFreq / 1000).toFixed(3);
+      document.getElementById('freq').value = newKhz;
+      spectrum.frequency = newFreq;
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send('F:' + newKhz);
+    }
   });
 </script>
 </body>

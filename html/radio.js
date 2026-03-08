@@ -250,7 +250,16 @@
               i=i+4;
               hz = ntohl(n);
               if(frequencyHz!=hz) {
-                frequencyHz=hz;
+                // Suppress server frequency for 3s after restore so our saved freq wins
+                if (window._restoreFreqUntil && Date.now() < window._restoreFreqUntil) {
+                  var rf = window._restoreFreqHz;
+                  frequencyHz = rf;
+                  try { ws.send("F:" + (rf/1000).toFixed(3)); } catch(e){}
+                } else {
+                  window._restoreFreqHz = null;
+                  window._restoreFreqUntil = null;
+                  frequencyHz=hz;
+                }
                 update=1;
               }
 
@@ -300,6 +309,11 @@
               spectrum.setFrequency(frequencyHz);
               spectrum.setSpanHz(binWidthHz * binCount);
               spectrum.bins = binCount;
+              if (window._restoreCenterPackets > 0) {
+                window._restoreCenterPackets--;
+                spectrum.setCenterHz(window._restoreFreqHz);
+                spectrum.setFrequency(window._restoreFreqHz);
+              }
               document.getElementById("zoom_level").max = (input_samprate <= 64800000) ? zoomTableSize-1: zoomTableSize-1; // above and below 64.8 Mhz now can do 15 levels of zoom?
               document.getElementById("zoom_level").value = z_level;
               //console.log("Zoom level=",z_level);
@@ -1583,6 +1597,10 @@ function loadSettings() {
   spectrum.frequency = parseFloat(localStorage.getItem("tune_hz"));
   frequencyHz = parseFloat(localStorage.getItem("tune_hz"));
   target_frequency = frequencyHz;
+  window._restoreFreqHz = frequencyHz;
+  window._restoreCenterHz = parseFloat(localStorage.getItem("spectrum_center_hz"));
+  window._restoreFreqUntil = Date.now() + 3000;
+  window._restoreCenterPackets = 5; // override server center for first 5 packets
   spectrum.min_db = parseFloat(localStorage.getItem("min_db"));
   document.getElementById("spectrum_min").value = spectrum.min_db;
   spectrum.max_db = parseFloat(localStorage.getItem("max_db"));
@@ -1602,8 +1620,8 @@ function loadSettings() {
   spectrum.decay = parseFloat(localStorage.getItem("decay"));
   spectrum.cursor_active = (localStorage.getItem("cursor_active") == "true");
   document.getElementById("mode").value = localStorage.getItem("preset");
-  const savedBandCat = localStorage.getItem("band_category"); if (savedBandCat) { const bc = document.getElementById("band_category"); if (bc) { bc.value = savedBandCat; bc.dispatchEvent(new Event("change")); } }
-  const savedBand = localStorage.getItem("band"); if (savedBand) { const b = document.getElementById("band"); if (b) { b.value = savedBand; b.dispatchEvent(new Event("change")); } }
+  const savedBandCat = localStorage.getItem("band_category"); if (savedBandCat) { const bc = document.getElementById("band_category"); if (bc) bc.value = savedBandCat; }
+  const savedBand = localStorage.getItem("band"); if (savedBand) { const b = document.getElementById("band"); if (b) b.value = savedBand; }
   const savedRegion = localStorage.getItem("dx_region"); if (savedRegion) { const r = document.getElementById("dx-region-sel"); if (r) r.value = savedRegion; }
   const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }
   target_preset = localStorage.getItem("preset");

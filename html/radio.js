@@ -2325,6 +2325,8 @@ window.addEventListener('DOMContentLoaded', function() {
             });
         });
         band.addEventListener('change', function() {
+            window._restoreCenterPackets = 0;
+            window._restoreFreqHz = null;
             if (this.value) setBand(this.value);
         });
         bandCategory.dispatchEvent(new Event('change'));

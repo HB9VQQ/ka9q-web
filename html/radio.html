@@ -1274,6 +1274,7 @@ function setSolPill(label, value, cssClass) {
   if (dxRegionSel) dxRegionSel.addEventListener('change', () => {
     dxCluster.spotterRegion = dxRegionSel.value;
     dxOverlay.draw();
+    if (typeof saveSettings === 'function') saveSettings();
   });
   dxCluster.connect();
   // Redraw every 60 s to age-fade spots even when no new spots arrive
@@ -1352,6 +1353,7 @@ function setSolPill(label, value, cssClass) {
   if (modeSelect) modeSelect.addEventListener('change', () => {
     dxOverlay.modeFilter = modeSelect.value.toUpperCase();
     dxOverlay.draw();
+    if (typeof saveSettings === 'function') saveSettings();
   });
   if (applyBtn) applyBtn.addEventListener('click', () => {
     const url = (document.querySelector('.bridge-inp') || {value: ''}).value;

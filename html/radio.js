@@ -1498,6 +1498,10 @@ function saveSettings() {
   localStorage.setItem("cursor_active", spectrum.cursor_active.toString());
   localStorage.setItem("preset", document.getElementById("mode").value);
   localStorage.setItem("step", document.getElementById("step").value.toString());
+  const bandEl = document.getElementById("band"); if (bandEl) localStorage.setItem("band", bandEl.value);
+  const bandCatEl = document.getElementById("band_category"); if (bandCatEl) localStorage.setItem("band_category", bandCatEl.value);
+  const regionEl = document.getElementById("dx-region-sel"); if (regionEl) localStorage.setItem("dx_region", regionEl.value);
+  const dxModeEl = document.getElementById("dx-mode-sel"); if (dxModeEl) localStorage.setItem("dx_mode", dxModeEl.value);
   localStorage.setItem("colorIndex", document.getElementById("colormap").value.toString());
   localStorage.setItem("meterIndex", document.getElementById("meter").value.toString());
   localStorage.setItem("cursor_freq", spectrum.cursor_freq.toString());
@@ -1572,7 +1576,7 @@ function setDefaultSettings() {
 
 function loadSettings() {
   console.log(`localStorage.length = ${localStorage.length}`);
- if ((localStorage.length == 0) || localStorage.length != 27) {
+ if (localStorage.length == 0) {
     return false;
   }
   spectrum.averaging = parseInt(localStorage.getItem("averaging"));
@@ -1598,6 +1602,10 @@ function loadSettings() {
   spectrum.decay = parseFloat(localStorage.getItem("decay"));
   spectrum.cursor_active = (localStorage.getItem("cursor_active") == "true");
   document.getElementById("mode").value = localStorage.getItem("preset");
+  const savedBandCat = localStorage.getItem("band_category"); if (savedBandCat) { const bc = document.getElementById("band_category"); if (bc) { bc.value = savedBandCat; bc.dispatchEvent(new Event("change")); } }
+  const savedBand = localStorage.getItem("band"); if (savedBand) { const b = document.getElementById("band"); if (b) { b.value = savedBand; b.dispatchEvent(new Event("change")); } }
+  const savedRegion = localStorage.getItem("dx_region"); if (savedRegion) { const r = document.getElementById("dx-region-sel"); if (r) r.value = savedRegion; }
+  const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }
   target_preset = localStorage.getItem("preset");
   increment = parseFloat(localStorage.getItem("step"));
   document.getElementById("colormap").value = parseInt(localStorage.getItem("colorIndex"));
@@ -1695,7 +1703,7 @@ const bandOptions = {
 // --- Ensure setAnalogMeterVisible is defined before use ---
 function setAnalogMeterVisible(visible) {
     //console.log(`Setting analog S-Meter visibility to: ${visible}`);
-    const analogBox = document.getElementById("analog_smeter_box");
+    const analogBox = document.getElementById("smeter-float");
     if (analogBox) {
         analogBox.style.display = visible ? "block" : "none";
     }

@@ -162,12 +162,14 @@ function createUpdateSMeter() {
             }
 
             // Display the held SNR value
-            if (lastSNR === -100) {
+            if (SignalToNoiseRatio > 0) _smoothedSNR = (_smoothedSNR === null) ? SignalToNoiseRatio : _smoothedSNR * (1 - _SMOOTH) + SignalToNoiseRatio * _SMOOTH;
+            const _dispSNR = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
+            if (_dispSNR <= 0) {
                 document.getElementById('snr').textContent = `SNR: -\u221E dB`;
                 document.getElementById('snr_data').textContent = `| SNR: -\u221E`;
             } else {
-                document.getElementById('snr').textContent = `SNR: ${lastSNR.toFixed(0)} dB`;
-                document.getElementById('snr_data').textContent = `| SNR: ${lastSNR.toFixed(0)}`;
+                document.getElementById('snr').textContent = `SNR: ${_dispSNR.toFixed(0)} dB`;
+                document.getElementById('snr_data').textContent = `| SNR: ${_dispSNR.toFixed(0)}`;
             }
         }
         else // max hold is false
@@ -206,12 +208,14 @@ function createUpdateSMeter() {
                 ctx.fillRect(0, 0, cWidth * normSig, cHeight);
             }
             // Display the real-time SNR value
-            if (SignalToNoiseRatio === -100) {
+            if (SignalToNoiseRatio > 0) _smoothedSNR = (_smoothedSNR === null) ? SignalToNoiseRatio : _smoothedSNR * (1 - _SMOOTH) + SignalToNoiseRatio * _SMOOTH;
+            const _dispSNR2 = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
+            if (_dispSNR2 <= 0) {
                 document.getElementById('snr').textContent = `SNR: -\u221E dB`;
                 document.getElementById('snr_data').textContent = `| SNR: -\u221E`;
             } else {
-                document.getElementById('snr').textContent = `SNR: ${SignalToNoiseRatio.toFixed(0)} dB`;
-                document.getElementById('snr_data').textContent = `| SNR: ${SignalToNoiseRatio.toFixed(0)}`;
+                document.getElementById('snr').textContent = `SNR: ${_dispSNR2.toFixed(0)} dB`;
+                document.getElementById('snr_data').textContent = `| SNR: ${_dispSNR2.toFixed(0)}`;
             }
         }
 

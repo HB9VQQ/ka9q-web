@@ -1559,7 +1559,7 @@ function setDefaultSettings() {
   spectrum.decay = 1;
   spectrum.cursor_active = false;
   document.getElementById("mode").value = "am";
-  target_preset = "usb";
+  target_preset = "am";
   increment = 1000;
   document.getElementById("colormap").value = 9;
   spectrum.colorIndex = 9;

@@ -162,7 +162,8 @@ function createUpdateSMeter() {
             }
 
             // Display the held SNR value
-            if (SignalToNoiseRatio > 0) _smoothedSNR = (_smoothedSNR === null) ? SignalToNoiseRatio : _smoothedSNR * (1 - _SMOOTH) + SignalToNoiseRatio * _SMOOTH;
+            const _snrIn = SignalToNoiseRatio > 0 ? SignalToNoiseRatio : 0;
+            _smoothedSNR = (_smoothedSNR === null) ? _snrIn : _smoothedSNR * (1 - _SMOOTH) + _snrIn * _SMOOTH;
             const _dispSNR = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
             if (_dispSNR <= 0) {
                 document.getElementById('snr').textContent = `SNR: -\u221E dB`;
@@ -208,7 +209,8 @@ function createUpdateSMeter() {
                 ctx.fillRect(0, 0, cWidth * normSig, cHeight);
             }
             // Display the real-time SNR value
-            if (SignalToNoiseRatio > 0) _smoothedSNR = (_smoothedSNR === null) ? SignalToNoiseRatio : _smoothedSNR * (1 - _SMOOTH) + SignalToNoiseRatio * _SMOOTH;
+            const _snrIn = SignalToNoiseRatio > 0 ? SignalToNoiseRatio : 0;
+            _smoothedSNR = (_smoothedSNR === null) ? _snrIn : _smoothedSNR * (1 - _SMOOTH) + _snrIn * _SMOOTH;
             const _dispSNR2 = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
             if (_dispSNR2 <= 0) {
                 document.getElementById('snr').textContent = `SNR: -\u221E dB`;
@@ -280,7 +282,7 @@ function createComputeSUnits() {
             s = 'S' +  sm1;    // S0 to S9
         } 
         else {
-            s = 'S9+' + ((p + 73) / 10) * 10;       // S9+1 to S9+60
+            s = 'S9+' + Math.round(p + 73);          // S9+1 to S9+60
         }
 
         // Set the color to red if over S9, green if S9 or below
@@ -295,8 +297,6 @@ function createComputeSUnits() {
         document.getElementById("s_data").textContent = s; 
 
         // Call analog S-meter draw function with the current signal level (p) if enabled
-        if (typeof drawAnalogSMeter === "function" && typeof enableAnalogSMeter !== "undefined" && enableAnalogSMeter) {
-        }
     }
 };
 
@@ -305,7 +305,8 @@ let _smoothedSNR = null;
 const _SMOOTH = 0.2; // EMA factor: lower = smoother
 function drawAnalogSMeter(signalStrength, snr) {
     _smoothedSignal = (_smoothedSignal === null) ? signalStrength : _smoothedSignal * (1 - _SMOOTH) + signalStrength * _SMOOTH;
-    if (snr > 0) _smoothedSNR = (_smoothedSNR === null) ? snr : _smoothedSNR * (1 - _SMOOTH) + snr * _SMOOTH;
+    const _snrIn = snr > 0 ? snr : 0;
+    _smoothedSNR = (_smoothedSNR === null) ? _snrIn : _smoothedSNR * (1 - _SMOOTH) + _snrIn * _SMOOTH;
     signalStrength = _smoothedSignal;
     snr = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
     const canvas = document.getElementById("sMeter");
@@ -428,7 +429,8 @@ function setSMeterMode(mode) {
 function drawDigitalSMeter(signal, snr) {
     // Apply same smoothing as analog meter
     _smoothedSignal = (_smoothedSignal === null) ? signal : _smoothedSignal * (1 - _SMOOTH) + signal * _SMOOTH;
-    if (snr > 0) _smoothedSNR = (_smoothedSNR === null) ? snr : _smoothedSNR * (1 - _SMOOTH) + snr * _SMOOTH;
+    const _snrIn = snr > 0 ? snr : 0;
+    _smoothedSNR = (_smoothedSNR === null) ? _snrIn : _smoothedSNR * (1 - _SMOOTH) + _snrIn * _SMOOTH;
     signal = _smoothedSignal;
     snr = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
   const canvas = document.getElementById('sMeterDigital');

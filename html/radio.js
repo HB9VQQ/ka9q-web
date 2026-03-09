@@ -1596,11 +1596,9 @@ function loadSettings() {
   const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }
   target_preset = localStorage.getItem("preset");
   increment = parseFloat(localStorage.getItem("step"));
-  document.getElementById("colormap").value = parseInt(localStorage.getItem("colorIndex"));
   const c = parseInt(localStorage.getItem("colorIndex"));
   document.getElementById("colormap").value = c;
   spectrum.colorIndex = c;
-  document.getElementById("meter").value = parseInt(localStorage.getItem("meterIndex"));
   const d = parseInt(localStorage.getItem("meterIndex"));
   document.getElementById("meter").value = d;
   meterType = d;
@@ -2021,21 +2019,6 @@ window.zoomTable = [
   { bin_width: 2, bin_count: 1620 },
   { bin_width: 1, bin_count: 1620 }
 ];
-
-// Utility: Find closest zoom level index for a given value
-window.findClosestZoomIndex = function(requestedZoom) {
-  if (!window.zoomTable || window.zoomTable.length === 0) return null;
-  let closest = window.zoomTable[0];
-  let minDiff = Math.abs(requestedZoom - closest.value);
-  for (let i = 1; i < window.zoomTable.length; ++i) {
-    const diff = Math.abs(requestedZoom - window.zoomTable[i].value);
-    if (diff < minDiff) {
-      closest = window.zoomTable[i];
-      minDiff = diff;
-    }
-  }
-  return closest.index;
-};
 
 function setSkipWaterfallLines(val) {
   val = Math.max(0, Math.min(3, parseInt(val, 10) || 0));

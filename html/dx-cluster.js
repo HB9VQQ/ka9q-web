@@ -152,10 +152,6 @@ window.DXOverlay = class DXOverlay {
       ctx.lineTo(x + 4, specH);
       ctx.closePath(); ctx.fill();
 
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.fillStyle = color;
-      ctx.beginPath();
       const lbl = '\u25C7' + spot.dx_call;
       ctx.font = 'bold 11px Arial, sans-serif';
       ctx.textBaseline = 'top';

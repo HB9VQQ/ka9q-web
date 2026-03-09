@@ -500,41 +500,7 @@
       }
       saveSettings();
     }
-
-    var pressed=false;
-    var moved=false;
-    var startX;
-    function onMouseDown(e) {
-      moved=false;
-      pressed=true;
-      startX=e.pageX;
-    }
-
-    function onMouseUp(e) {
-      if(!moved) {
-        width=document.getElementById('waterfall').width;
-        hzPerPixel = binWidthHz / width;
-        f=Math.round((centerHz - (binWidthHz / 2)) + (hzPerPixel * e.pageX));
-        f=f-(f%increment);
-        document.getElementById("freq").value = (f / 1000.0).toFixed(3);
-        setFrequencyW(false);
-      }
-      saveSettings();
-      pressed=false;
-    }
-
-    function onMouseMove(e) {
-      if(pressed) {
-        moved=true;
-        if(startX<e.pageX) {
-          incrementFrequency();
-        } else if(e.pageX<startX) {
-          decrementFrequency();
-        }
-        startX=e.pageX;
-      }
-      saveSettings();
-    }
+    // onMouseDown/onMouseUp/onMouseMove removed — dead code, never registered on waterfall
 
     function onWheel(e) {
       e.preventDefault();

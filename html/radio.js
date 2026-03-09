@@ -533,7 +533,7 @@
     }
 
     function onWheel(e) {
-      event.preventDefault();
+      e.preventDefault();
       if (!spectrum.cursor_active) {
         if(e.deltaY<0) {
           //scroll up

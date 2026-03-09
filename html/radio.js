@@ -1519,10 +1519,10 @@ function saveSettings() {
   localStorage.setItem("colorIndex", document.getElementById("colormap").value.toString());
   localStorage.setItem("meterIndex", document.getElementById("meter").value.toString());
   localStorage.setItem("cursor_freq", spectrum.cursor_freq.toString());
-  localStorage.setItem("check_max", document.getElementById("check_max").checked.toString()); 
-  localStorage.setItem("check_min", document.getElementById("check_min").checked.toString());
-  localStorage.setItem("switchModesByFrequency", document.getElementById("cksbFrequency").checked.toString());
-  localStorage.setItem("onlyAutoscaleByButton", document.getElementById("ckonlyAutoscaleButton").checked.toString());
+  const checkMaxEl = document.getElementById("check_max"); if (checkMaxEl) localStorage.setItem("check_max", checkMaxEl.checked.toString()); 
+  const checkMinEl = document.getElementById("check_min"); if (checkMinEl) localStorage.setItem("check_min", checkMinEl.checked.toString());
+  const cksbEl = document.getElementById("cksbFrequency"); if (cksbEl) localStorage.setItem("switchModesByFrequency", cksbEl.checked.toString());
+  const ckonlyEl = document.getElementById("ckonlyAutoscaleButton"); if (ckonlyEl) localStorage.setItem("onlyAutoscaleByButton", ckonlyEl.checked.toString());
   localStorage.setItem("enableAnalogSMeter",enableAnalogSMeter);
   localStorage.setItem("enableBandEdges", enableBandEdges);
   var volumeControlNumber = document.getElementById("volume_control").valueAsNumber;

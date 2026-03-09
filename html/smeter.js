@@ -237,9 +237,9 @@ function createUpdateSMeter() {
         // Draw analog S-meter if enabled
         if (typeof enableAnalogSMeter !== "undefined" && enableAnalogSMeter) {
             if (typeof _smeterMode !== "undefined" && _smeterMode === "digital") {
-                drawDigitalSMeter(SignalLevel, SignalToNoiseRatio);
+                drawDigitalSMeter(SignalLevel, _smoothedSNR !== null ? _smoothedSNR : 0);
             } else {
-                drawAnalogSMeter(SignalLevel, SignalToNoiseRatio);
+                drawAnalogSMeter(SignalLevel, _smoothedSNR !== null ? _smoothedSNR : 0);
             }
         }
 
@@ -305,10 +305,8 @@ let _smoothedSNR = null;
 const _SMOOTH = 0.2; // EMA factor: lower = smoother
 function drawAnalogSMeter(signalStrength, snr) {
     _smoothedSignal = (_smoothedSignal === null) ? signalStrength : _smoothedSignal * (1 - _SMOOTH) + signalStrength * _SMOOTH;
-    const _snrIn = snr > 0 ? snr : 0;
-    _smoothedSNR = (_smoothedSNR === null) ? _snrIn : _smoothedSNR * (1 - _SMOOTH) + _snrIn * _SMOOTH;
     signalStrength = _smoothedSignal;
-    snr = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
+    snr = (snr !== null && snr > 0) ? snr : -1;
     const canvas = document.getElementById("sMeter");
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -429,10 +427,8 @@ function setSMeterMode(mode) {
 function drawDigitalSMeter(signal, snr) {
     // Apply same smoothing as analog meter
     _smoothedSignal = (_smoothedSignal === null) ? signal : _smoothedSignal * (1 - _SMOOTH) + signal * _SMOOTH;
-    const _snrIn = snr > 0 ? snr : 0;
-    _smoothedSNR = (_smoothedSNR === null) ? _snrIn : _smoothedSNR * (1 - _SMOOTH) + _snrIn * _SMOOTH;
     signal = _smoothedSignal;
-    snr = (_smoothedSNR !== null && _smoothedSNR > 0) ? _smoothedSNR : -1;
+    snr = (snr !== null && snr > 0) ? snr : -1;
   const canvas = document.getElementById('sMeterDigital');
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;

@@ -460,6 +460,10 @@
         ws.binaryType = "arraybuffer";
         ws.onerror = on_ws_error;
         document.getElementById('waterfall').addEventListener("wheel", onWheel, {passive: false});
+        ['waterfall_max_range','waterfall_min_range','zoom_level','volume_control','panner_control'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('wheel', function(e) { adjustRange(el, e); }, {passive: false});
+        });
         document.getElementById('waterfall').addEventListener("keydown", (event) => { spectrum.onKeypress(event); }, false);
         document.getElementById("freq").value = (frequencyHz / 1000.0).toFixed(3);
         document.getElementById('step').value = increment.toString();
@@ -940,8 +944,8 @@
         if (wheelTimer) clearTimeout(wheelTimer);
         wheelTimer = setTimeout(() => { lastEdgeInteraction = null; wheelTimer = null; }, 200);
       };
-      lowEl.addEventListener('wheel', wheelHandler);
-      highEl.addEventListener('wheel', wheelHandler);
+      lowEl.addEventListener('wheel', wheelHandler, {passive: true});
+      highEl.addEventListener('wheel', wheelHandler, {passive: true});
 
       // Keyboard interaction — mark as keyboard. Arrow keys still cause a send after update.
       const keyHandler = function(e) {

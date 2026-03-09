@@ -538,12 +538,12 @@ input[type=range]::-webkit-slider-thumb {
     <div class="cg-title">Waterfall</div>
     <div class="crow">
       <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:22px">Ceil</span>
-      <input type="range" id="waterfall_max_range" min="-140" max="0"   value="-65"  style="width:80px" oninput="setWaterfallMax()" onwheel="adjustRange(this,event)" title="Waterfall ceiling dBm">
+      <input type="range" id="waterfall_max_range" min="-140" max="0"   value="-65"  style="width:80px" oninput="setWaterfallMax()" title="Waterfall ceiling dBm">
       <input type="text"  id="waterfall_max"       style="width:38px" readonly class="num-inp">
     </div>
     <div class="crow">
       <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:22px">Floor</span>
-      <input type="range" id="waterfall_min_range" min="-150" max="-40" value="-115" style="width:80px" oninput="setWaterfallMin()" onwheel="adjustRange(this,event)" title="Waterfall floor dBm">
+      <input type="range" id="waterfall_min_range" min="-150" max="-40" value="-115" style="width:80px" oninput="setWaterfallMin()" title="Waterfall floor dBm">
       <input type="text"  id="waterfall_min"       style="width:38px" readonly class="num-inp">
     </div>
   </div>
@@ -554,7 +554,7 @@ input[type=range]::-webkit-slider-thumb {
       <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:26px">Zoom</span>
       <input type="range" id="zoom_level" name="zoom" min="0" max="15" value="0"
              style="width:80px" oninput="setZoom()" onmousedown="zoomMouseDown()"
-             onmouseup="zoomMouseUp()" onwheel="adjustRange(this,event)" title="Spectrum zoom">
+             onmouseup="zoomMouseUp()" title="Spectrum zoom">
       <button class="cbtn" id="zoomminus" onclick="zoomout()"    style="padding:2px 5px">−</button>
       <button class="cbtn" id="zoomplus"  onclick="zoomin()"     style="padding:2px 5px">+</button>
       <button class="cbtn" id="zoomcenter" onclick="zoomcenter()" style="padding:2px 7px" title="Center on tune">⊙</button>
@@ -609,11 +609,11 @@ input[type=range]::-webkit-slider-thumb {
     <div class="crow">
       <span class="lbl">Vol</span>
       <input type="range" id="volume_control" min="0" max="1" step="0.01" value="1.0"
-             style="width:70px" oninput="setPlayerVolume(this.value)" onwheel="adjustRange(this,event)" title="Volume">
+             style="width:70px" oninput="setPlayerVolume(this.value)" title="Volume">
       <span class="lbl" style="margin-left:4px">Pan</span>
       <input type="range" id="panner_control" min="-1" max="1" step="0.1" value="0"
              style="width:50px;margin-right:0"
-             oninput="setPanner(this.value)" onwheel="adjustRange(this,event)" title="Audio pan L/R">
+             oninput="setPanner(this.value)" title="Audio pan L/R">
     </div>
   </div>
 

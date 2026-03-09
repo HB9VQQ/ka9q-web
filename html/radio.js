@@ -459,7 +459,7 @@
         ws.onclose=on_ws_close;
         ws.binaryType = "arraybuffer";
         ws.onerror = on_ws_error;
-        document.getElementById('waterfall').addEventListener("wheel", onWheel, false);
+        document.getElementById('waterfall').addEventListener("wheel", onWheel, {passive: false});
         document.getElementById('waterfall').addEventListener("keydown", (event) => { spectrum.onKeypress(event); }, false);
         document.getElementById("freq").value = (frequencyHz / 1000.0).toFixed(3);
         document.getElementById('step').value = increment.toString();

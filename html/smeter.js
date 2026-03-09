@@ -75,7 +75,7 @@ function createUpdateSMeter() {
             }
         } else   // SNR meter
         if (meterType == 1)
-            normSig = SignalToNoiseRatio / 50 + 0.1; // 50dB SNR is full scale, -10db is the minimum value 
+            normSig = (_smoothedSNR !== null ? _smoothedSNR : 0) / 50 + 0.1; // 50dB SNR is full scale, -10db is the minimum value 
         else
             normSig = Number(input_samprate) / Number(samples_since_over);
 
@@ -131,13 +131,14 @@ function createUpdateSMeter() {
                 // If SNR == 0, nothing is drawn (all blank)
 
                 // Bottom 2/3: real time bar graph, but color and position as SNR logic
-                if (SignalToNoiseRatio < 0) {
-                    const redFrac = Math.min(1, Math.max(0, -SignalToNoiseRatio / 10));
+                const _snrBar1 = _smoothedSNR !== null ? _smoothedSNR : 0;
+                if (_snrBar1 < 0) {
+                    const redFrac = Math.min(1, Math.max(0, -_snrBar1 / 10));
                     const redWidth = zeroPoint * redFrac;
                     ctx.fillStyle = "red";
                     ctx.fillRect(zeroPoint - redWidth, cHeight * maxBarHeight, redWidth, cHeight - cHeight * maxBarHeight);
-                } else if (SignalToNoiseRatio > 0) {
-                    const blueFrac = Math.min(1, SignalToNoiseRatio / 50);
+                } else if (_snrBar1 > 0) {
+                    const blueFrac = Math.min(1, _snrBar1 / 50);
                     const blueWidth = (cWidth - zeroPoint) * blueFrac;
                     ctx.fillStyle = "rgb(1, 136, 199)";
                     ctx.fillRect(zeroPoint, cHeight * maxBarHeight, blueWidth, cHeight - cHeight * maxBarHeight);
@@ -180,15 +181,16 @@ function createUpdateSMeter() {
                 // SNR spans from -10 to +50
                 const zeroPoint = cWidth * (10 / 60); // 1/6 of the width
 
-                if (SignalToNoiseRatio < 0) {
+                const _snrBar2 = _smoothedSNR !== null ? _smoothedSNR : 0;
+                if (_snrBar2 < 0) {
                     // Red bar: from zeroPoint leftward, proportional to SNR
-                    const redFrac = Math.min(1, Math.max(0, -SignalToNoiseRatio / 10)); // 0 to 1 as SNR goes 0 to -10
+                    const redFrac = Math.min(1, Math.max(0, -_snrBar2 / 10)); // 0 to 1 as SNR goes 0 to -10
                     const redWidth = zeroPoint * redFrac;
                     ctx.fillStyle = "red";
                     ctx.fillRect(zeroPoint - redWidth, 0, redWidth, cHeight);
-                } else if (SignalToNoiseRatio > 0) {
+                } else if (_snrBar2 > 0) {
                     // Blue bar: from zeroPoint rightward, proportional to SNR (max at +50)
-                    const blueFrac = Math.min(1, SignalToNoiseRatio / 50); // 0 to 1 as SNR goes 0 to +50
+                    const blueFrac = Math.min(1, _snrBar2 / 50); // 0 to 1 as SNR goes 0 to +50
                     const blueWidth = (cWidth - zeroPoint) * blueFrac;
                     ctx.fillStyle = "rgb(1, 136, 199)";
                     ctx.fillRect(zeroPoint, 0, blueWidth, cHeight);

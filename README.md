@@ -118,7 +118,6 @@ on your own station, change the following:
 | File | What to change |
 |---|---|
 | `dx-cluster-bridge.service` | `--cluster-host` → your DX cluster hostname<br>`--callsign` → your own callsign (e.g. `W1AW-6`) |
-| `dx-cluster-bridge.py` | `--cluster-host` and `--callsign` are passed from the service file — no code changes needed |
 | `html/hb9vqq-init.js` | Line ~44: WebSocket URL `wss://dxmap.hb9vqq.ch/dx-ws` → `ws://YOUR-SERVER-IP:9373`<br>Line ~124: same fallback URL<br>Line ~266: `https://dxmap.hb9vqq.ch/data/eu_v4.json` → your own region data endpoint, or remove the spotter region filter |
 | `html/radio.html` | `<title>` tag and footer text — replace `HB9VQQ` with your callsign |
 

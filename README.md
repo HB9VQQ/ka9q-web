@@ -127,5 +127,3 @@ on your own station, change the following:
 ---
 
 ## Known issues / TODO
-
-* GitHub Actions CI not yet configured for this fork

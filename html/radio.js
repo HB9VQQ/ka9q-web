@@ -308,11 +308,13 @@
               spectrum.setFrequency(frequencyHz);
               spectrum.setSpanHz(binWidthHz * binCount);
               spectrum.bins = binCount;
+// ── HB9VQQ BEGIN: restore saved center/frequency for first N WS packets after init ──
               if (window._restoreCenterPackets > 0) {
                 window._restoreCenterPackets--;
                 spectrum.setCenterHz(window._restoreFreqHz);
                 spectrum.setFrequency(window._restoreFreqHz);
               }
+// ── HB9VQQ END: restore saved center/frequency for first N WS packets after init ──
               document.getElementById("zoom_level").max = (input_samprate <= 64800000) ? zoomTableSize-1: zoomTableSize-1; // above and below 64.8 Mhz now can do 15 levels of zoom?
               document.getElementById("zoom_level").value = z_level;
               //console.log("Zoom level=",z_level);
@@ -362,6 +364,7 @@
                   let d = new Uint8Array(dataBuffer);
                   let enc = new TextDecoder("utf-8");
                   page_title = enc.decode(d);
+                  // ── HB9VQQ BEGIN: page_title: underscore to space, URL to clickable link ──
                   const headingElem = document.getElementById('heading');
                   if (headingElem) {
                       if (/^https?:\/\//i.test(page_title)) {
@@ -371,6 +374,7 @@
                       }
                   }
                   document.title = page_title.replace(/_/g, ' ');
+                  // ── HB9VQQ END: page_title: underscore to space, URL to clickable link ──
                   i=i+l;
                   break;
                 case 39: // LOW_EDGE
@@ -459,6 +463,7 @@
         ws.binaryType = "arraybuffer";
         ws.onerror = on_ws_error;
         document.getElementById('waterfall').addEventListener("wheel", onWheel, {passive: false});
+// HB9VQQ: add panner_control to mouse-wheel adjustable controls
         ['waterfall_max_range','waterfall_min_range','zoom_level','volume_control','panner_control'].forEach(function(id) {
             var el = document.getElementById(id);
             if (el) el.addEventListener('wheel', function(e) { adjustRange(el, e); }, {passive: false});
@@ -1135,8 +1140,10 @@ function adjustRange(element, event) {
 
   // Determine the step size based on the element's ID
   let step = 1; // Default step size
+// ── HB9VQQ BEGIN: adjustRange: fine step for volume and panner controls ──
   if ((element.id === 'volume_control') || (element.id === 'panner_control')) {
     step = 0.1; // Step size for volume and panner control
+// ── HB9VQQ END: adjustRange: fine step for volume and panner controls ──
   }
 
   const currentValue = parseFloat(element.value);
@@ -1452,7 +1459,9 @@ function dumpHTML() {
 let settingsReady = false; // Block saves until after settings are loaded and UI is initialized
 function saveSettings() {
   if (!settingsReady) return;
+// ── HB9VQQ BEGIN: saveSettings: null guard — spectrum not ready on first WS packet ──
   if (!spectrum || !spectrum.frequency) return; // Prevent saves during initialization
+// ── HB9VQQ END: saveSettings: null guard — spectrum not ready on first WS packet ──
   localStorage.setItem("tune_hz", spectrum.frequency.toString());
   localStorage.setItem("zoom_level", document.getElementById("zoom_level").valueAsNumber);
   localStorage.setItem("min_db", spectrum.min_db.toString())
@@ -1557,6 +1566,7 @@ function loadSettings() {
   window._restoreFreqHz = frequencyHz;
   window._restoreCenterHz = parseFloat(localStorage.getItem("spectrum_center_hz"));
   window._restoreFreqUntil = Date.now() + 3000;
+// HB9VQQ: override server-sent center for first 5 WS packets to restore saved position
   window._restoreCenterPackets = 5; // override server center for first 5 packets
   spectrum.min_db = parseFloat(localStorage.getItem("min_db"));
   document.getElementById("spectrum_min").value = spectrum.min_db;
@@ -2265,6 +2275,7 @@ window.addEventListener('DOMContentLoaded', function() {
             });
         });
         band.addEventListener('change', function() {
+// HB9VQQ: user changed band — cancel frequency restore immediately
             window._restoreCenterPackets = 0;
             window._restoreFreqHz = null;
             if (this.value) setBand(this.value);

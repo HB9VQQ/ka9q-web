@@ -1364,11 +1364,13 @@ function setSolPill(label, value, cssClass) {
 
   // Click-to-tune: suppress if pointer moved >4px (pan drag)
   let _tuneDownX = 0, _tuneDownY = 0, _tuneDragged = false;
+  // ── HB9VQQ BEGIN: pointerdown: cancel restore + track drag start ──
   spectrum.canvas.addEventListener('pointerdown', e => {
     _tuneDownX = e.clientX; _tuneDownY = e.clientY; _tuneDragged = false;
     if (window._dxOverlay) window._dxOverlay._labelBoxes = [];
     window._restoreCenterPackets = 0;
   });
+  // ── HB9VQQ END: pointerdown: cancel restore + track drag start ──
 
   // ── Filter bar drag ──
   (function() {
@@ -1444,7 +1446,8 @@ function setSolPill(label, value, cssClass) {
     if (Math.abs(e.clientX - _tuneDownX) > 4 || Math.abs(e.clientY - _tuneDownY) > 4)
       _tuneDragged = true;
   });
-  spectrum.canvas.addEventListener('click', e => {
+  // ── HB9VQQ BEGIN: click-to-tune: DX spot click tunes radio ──
+spectrum.canvas.addEventListener('click', e => {
     if (_tuneDragged) return;
     const rect   = spectrum.canvas.getBoundingClientRect();
     const x      = e.clientX - rect.left;
@@ -1459,13 +1462,16 @@ function setSolPill(label, value, cssClass) {
       spectrum.setFrequency(hz);
     }
   });
+// ── HB9VQQ END: click-to-tune: DX spot click tunes radio ──
 
   dxCluster.connect();
   // Restore saved DX filter settings
-  const _savedRegion = localStorage.getItem("dx_region");
+  // ── HB9VQQ BEGIN: restore saved DX filter settings (region + mode) ──
+const _savedRegion = localStorage.getItem("dx_region");
   if (_savedRegion) { const r = document.getElementById("dx-region-sel"); if (r) { r.value = _savedRegion; dxCluster.spotterRegion = _savedRegion; } }
   const _savedDxMode = localStorage.getItem("dx_mode");
   if (_savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) { dm.value = _savedDxMode; dxOverlay.modeFilter = _savedDxMode.toUpperCase(); } }
+// ── HB9VQQ END: restore saved DX filter settings (region + mode) ──
 })();
 </script>
 

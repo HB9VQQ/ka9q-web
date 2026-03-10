@@ -1290,6 +1290,9 @@ Spectrum.prototype.measureMinMax = function(data) {
 Spectrum.prototype.updateSpectrumRatio = function() {
     this.spectrumHeight = Math.round(this.canvas.height * this.spectrumPercent / 100.0);
 
+    // ── HB9VQQ BEGIN: guard createLinearGradient against NaN/zero height ──
+    if (!isFinite(this.spectrumHeight) || this.spectrumHeight <= 0) return;
+    // ── HB9VQQ END: guard createLinearGradient against NaN/zero height ──
     this.gradient = this.ctx.createLinearGradient(0, 0, 0, this.spectrumHeight);
     for (var i = 0; i < this.colormap.length; i++) {
         var c = this.colormap[this.colormap.length - 1 - i];

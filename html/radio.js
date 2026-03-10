@@ -1045,6 +1045,9 @@
 
     async function audio_start_stop()
     {
+        // ── HB9VQQ BEGIN: null guard — ws not ready yet ──
+        if (!ws) { console.warn('audio_start_stop: ws not ready'); return; }
+        // ── HB9VQQ END: null guard — ws not ready yet ──
         var btn = document.getElementById("audio_button");
         if(btn.value==="START") {
           btn.value = "STOP";

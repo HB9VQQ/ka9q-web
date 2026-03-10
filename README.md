@@ -118,11 +118,10 @@ on your own station, change the following:
 | File | What to change |
 |---|---|
 | `dx-cluster-bridge.service` | `--cluster-host` → your DX cluster hostname<br>`--callsign` → your own callsign (e.g. `W1AW-6`) |
-| `html/hb9vqq-init.js` | Line ~44: WebSocket URL `wss://dxmap.hb9vqq.ch/dx-ws` → `ws://YOUR-SERVER-IP:9373`<br>Line ~124: same fallback URL<br>Line ~266: `https://dxmap.hb9vqq.ch/data/eu_v4.json` → your own region data endpoint, or remove the spotter region filter |
+| `html/hb9vqq-init.js` | WebSocket URL (`wss://dxmap.hb9vqq.ch/dx-ws`) and region data (`eu_v4.json`) are served as a free community service — leave as-is, or point at your own bridge if preferred |
 | `html/radio.html` | `<title>` tag and footer text — replace `HB9VQQ` with your callsign |
 
-> **Note:** The solar indices bar in the header fetches live data from `wspr.hb9vqq.ch`.
-> You can leave this as-is (it is a public API) or point it at your own source.
+> **Note:** The solar indices bar and DX cluster WebSocket (`dxmap.hb9vqq.ch`, `wspr.hb9vqq.ch`) are served as a free community service — no changes needed.
 
 ---
 

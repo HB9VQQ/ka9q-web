@@ -101,12 +101,29 @@ sudo ufw allow 9373/tcp comment "DX cluster WS bridge"
 
 ### Bridge options
 ```
---cluster-host   DX Spider hostname  (default: dxcluster.hb9vqq.ch)
+--cluster-host   DX Spider hostname  (required — no default)
 --cluster-port   DX Spider port      (default: 7300)
---callsign       Login callsign      (default: HB9CU-10)
+--callsign       Login callsign      (required — set to your own callsign)
 --ws-port        WebSocket port      (default: 9373)
 --max-age        Spot max age (min)  (default: 30)
 ```
+
+---
+
+## Customisation — what to change for your own deployment
+
+This fork contains references to HB9VQQ's specific infrastructure. Before deploying
+on your own station, change the following:
+
+| File | What to change |
+|---|---|
+| `dx-cluster-bridge.service` | `--cluster-host` → your DX cluster hostname<br>`--callsign` → your own callsign (e.g. `W1AW-6`) |
+| `dx-cluster-bridge.py` | `--cluster-host` and `--callsign` are passed from the service file — no code changes needed |
+| `html/hb9vqq-init.js` | Line ~44: WebSocket URL `wss://dxmap.hb9vqq.ch/dx-ws` → `ws://YOUR-SERVER-IP:9373`<br>Line ~124: same fallback URL<br>Line ~266: `https://dxmap.hb9vqq.ch/data/eu_v4.json` → your own region data endpoint, or remove the spotter region filter |
+| `html/radio.html` | `<title>` tag and footer text — replace `HB9VQQ` with your callsign |
+
+> **Note:** The solar indices bar in the header fetches live data from `wspr.hb9vqq.ch`.
+> You can leave this as-is (it is a public API) or point it at your own source.
 
 ---
 

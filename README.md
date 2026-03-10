@@ -118,10 +118,10 @@ on your own station, change the following:
 | File | What to change |
 |---|---|
 | `dx-cluster-bridge.service` | `--cluster-host` → your DX cluster hostname<br>`--callsign` → your own callsign (e.g. `W1AW-6`) |
-| `html/hb9vqq-init.js` | WebSocket URL (`wss://dxmap.hb9vqq.ch/dx-ws`) and region data (`eu_v4.json`) are served as a free community service — leave as-is, or point at your own bridge if preferred |
+| `html/hb9vqq-init.js` | WebSocket URL (`wss://dxmap.hb9vqq.ch/dx-ws`) and solar indices feed (`eu_v4.json`) are served as free community services — leave as-is, or point at your own bridge if preferred |
 | `html/radio.html` | `<title>` tag and footer text — replace `HB9VQQ` with your callsign |
 
-> **Note:** The solar indices bar and DX cluster WebSocket (`dxmap.hb9vqq.ch`, `wspr.hb9vqq.ch`) are served as a free community service — no changes needed.
+> **Note:** The solar indices pills (SFI, Kp, SWS, DRAP) and DX cluster WebSocket are both served from `dxmap.hb9vqq.ch` as free community services — no changes needed.
 
 ---
 

@@ -1367,6 +1367,7 @@ function setSolPill(label, value, cssClass) {
   spectrum.canvas.addEventListener('pointerdown', e => {
     _tuneDownX = e.clientX; _tuneDownY = e.clientY; _tuneDragged = false;
     if (window._dxOverlay) window._dxOverlay._labelBoxes = [];
+    window._restoreCenterPackets = 0;
   });
 
   // ── Filter bar drag ──

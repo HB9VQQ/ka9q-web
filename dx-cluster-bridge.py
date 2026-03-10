@@ -7,7 +7,7 @@ Connects to a DX Spider telnet cluster, parses DX de spots,
 and re-publishes them as JSON over a WebSocket server.
 
 Install deps:  pip install 'websockets>=10'
-Run:           python3 dx-cluster-bridge.py --callsign HB9VQQ
+Run:           python3 dx-cluster-bridge.py --callsign YOURCALL
 Systemd:       see dx-cluster-bridge.service
 """
 
@@ -230,12 +230,12 @@ async def main(args: argparse.Namespace) -> None:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='DX Cluster WebSocket Bridge')
-    parser.add_argument('--cluster-host', default='dxcluster.hb9vqq.ch',
-                        help='DX Spider telnet host (default: dxcluster.hb9vqq.ch)')
+    parser.add_argument('--cluster-host', default='dxcluster.example.com',
+                        help='DX Spider telnet host (required — set to your cluster)')
     parser.add_argument('--cluster-port', type=int, default=7300,
                         help='DX Spider telnet port (default: 7300)')
-    parser.add_argument('--callsign', default='HB9VQQ',
-                        help='Login callsign (default: HB9VQQ)')
+    parser.add_argument('--callsign', default='N0CALL',
+                        help='Login callsign — set to your own callsign (default: N0CALL)')
     parser.add_argument('--ws-port', type=int, default=9373,
                         help='WebSocket server port (default: 9373)')
     parser.add_argument('--max-age', type=int, default=30,

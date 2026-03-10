@@ -5,10 +5,11 @@ After=network.target
 [Service]
 Type=simple
 User=radio
+# Edit --cluster-host and --callsign before deploying
 ExecStart=/usr/local/bin/dx-cluster-bridge.py \
-    --cluster-host dxcluster.hb9vqq.ch \
+    --cluster-host dxcluster.example.com \
     --cluster-port 7300 \
-    --callsign HB9VQQ-6 \
+    --callsign YOURCALL-6 \
     --ws-port 9373 \
     --max-age 30
 Restart=always

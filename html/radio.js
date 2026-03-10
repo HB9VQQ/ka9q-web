@@ -33,7 +33,6 @@
       var if_power = 0;
       var ad_over = 0;
       var samples_since_over = 0;
-      var noise_density_spectrum = 0;
       var noise_density_audio = 0;
       var blocks_since_last_poll = 0;
       var last_poll = -1;
@@ -486,20 +485,7 @@
     // window.addEventListener('load', init, false);
 
     var increment=1000;
-    function onClick(e) {   // click on waterfall or spectrum
-      var span = binWidthHz * binCount;
-      width=document.getElementById('waterfall').width;
-      hzPerPixel=span/width;
-      f=Math.round((centerHz-(span/2))+(hzPerPixel*e.pageX));
-      f=f-(f%increment);
-      if (!spectrum.cursor_active) {
-        document.getElementById("freq").value = (f / 1000.0).toFixed(3);
-        setFrequencyW(false);
-      } else {
-        spectrum.cursor_freq = spectrum.limitCursor(Math.round((centerHz - (span / 2)) + (hzPerPixel * e.pageX)));
-      }
-      saveSettings();
-    }
+    // onClick removed — dead code, click-to-tune handled in spectrum.js
     // onMouseDown/onMouseUp/onMouseMove removed — dead code, never registered on waterfall
 
     function onWheel(e) {

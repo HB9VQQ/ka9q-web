@@ -1,0 +1,131 @@
+diff --git a/html/pcm-player.js b/html/pcm-player.js
+index 653b120..69f2008 100644
+--- a/html/pcm-player.js
++++ b/html/pcm-player.js
+@@ -12,6 +12,7 @@ PCMPlayer.prototype.init = function(option) {
+     this.option = Object.assign({}, defaults, option);
+     this.samples = new Float32Array();
+     this.flush = this.flush.bind(this);
++    this._destroyed = false;                              // [HB9VQQ] race-condition guard
+     this.interval = setInterval(this.flush, this.option.flushingTime);
+     this.maxValue = this.getMaxValue();
+     this.typedArray = this.getTypedArray();
+@@ -46,10 +47,16 @@ PCMPlayer.prototype.createContext = function() {
+     // context needs to be resumed on iOS and Safari (or it will stay in "suspended" state)
+     this.audioCtx.resume();
+     //this.audioCtx.onstatechange = () => console.log(this.audioCtx.state);   // if you want to see "Running" state in console and be happy about it
+-    
++
+     this.gainNode = this.audioCtx.createGain();
+     this.gainNode.gain.value = 1;
+-    this.gainNode.connect(this.audioCtx.destination);
++
++    // [HB9VQQ] StereoPannerNode: gainNode → _pannerNode → destination
++    this._pannerNode = this.audioCtx.createStereoPanner();
++    this._pannerNode.pan.value = 0;
++    this.gainNode.connect(this._pannerNode);
++    this._pannerNode.connect(this.audioCtx.destination);
++
+     this.startTime = this.audioCtx.currentTime;
+ };
+ 
+@@ -88,9 +95,77 @@ PCMPlayer.prototype.volume = function(volume) {
+     this.gainNode.gain.value = volume;
+ };
+ 
++// [HB9VQQ] Stereo pan: -1.0 = full left, 0 = centre, +1.0 = full right
++PCMPlayer.prototype.pan = function(value) {
++    if (this._pannerNode) {
++        this._pannerNode.pan.value = Math.max(-1, Math.min(1, value));
++    }
++};
++
++// [HB9VQQ] Start recording post-gain/post-pan audio to a WebM file.
++// Taps MediaStreamDestination from _pannerNode so recording reflects
++// both volume and pan settings. On stopRecording() the file is
++// auto-downloaded as ka9q-recording-<ISO timestamp>.webm.
++PCMPlayer.prototype.startRecording = function() {
++    if (this._mediaRecorder) return;           // already recording — no-op
++    if (!this._pannerNode) return;             // context not ready
++
++    var dest = this.audioCtx.createMediaStreamDestination();
++    this._pannerNode.connect(dest);
++    this._recordingDest = dest;
++    this._recordingChunks = [];
++
++    var self = this;
++    this._mediaRecorder = new MediaRecorder(dest.stream);
++
++    this._mediaRecorder.ondataavailable = function(e) {
++        if (e.data && e.data.size > 0) {
++            self._recordingChunks.push(e.data);
++        }
++    };
++
++    this._mediaRecorder.onstop = function() {
++        // disconnect recording tap before touching chunks
++        if (self._recordingDest) {
++            try { self._pannerNode.disconnect(self._recordingDest); } catch (ignore) {}
++        }
++        var blob = new Blob(self._recordingChunks, { type: 'audio/webm' });
++        var url = URL.createObjectURL(blob);
++        var a = document.createElement('a');
++        a.href = url;
++        a.download = 'ka9q-recording-' +
++            new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '') + '.webm';
++        document.body.appendChild(a);
++        a.click();
++        document.body.removeChild(a);
++        URL.revokeObjectURL(url);
++
++        self._recordingChunks = null;
++        self._recordingDest   = null;
++        self._mediaRecorder   = null;
++    };
++
++    this._mediaRecorder.start();
++};
++
++// [HB9VQQ] Stop an active recording and trigger download.
++PCMPlayer.prototype.stopRecording = function() {
++    if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
++        this._mediaRecorder.stop();   // onstop fires asynchronously → handles download + cleanup
++    }
++};
++
+ PCMPlayer.prototype.destroy = function() {
++    this._destroyed = true;            // [HB9VQQ] tell flush() to bail before touching closed ctx
++
++    // Stop any active recording cleanly before closing the audio context
++    if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
++        try { this._mediaRecorder.stop(); } catch (ignore) {}
++    }
++
+     if (this.interval) {
+         clearInterval(this.interval);
++        this.interval = null;
+     }
+     this.samples = null;
+     this.audioCtx.close();
+@@ -98,6 +173,7 @@ PCMPlayer.prototype.destroy = function() {
+ };
+ 
+ PCMPlayer.prototype.flush = function() {
++    if (this._destroyed) return;       // [HB9VQQ] guard: interval may fire after destroy()
+     if (!this.samples.length) return;
+     var bufferSource = this.audioCtx.createBufferSource(),
+         length = this.samples.length / this.option.channels,
+@@ -126,7 +202,7 @@ PCMPlayer.prototype.flush = function() {
+             offset += this.option.channels;
+         }
+     }
+-    
++
+     if (this.startTime < this.audioCtx.currentTime) {
+         this.startTime = this.audioCtx.currentTime;
+     }
+@@ -137,3 +213,4 @@ PCMPlayer.prototype.flush = function() {
+     this.startTime += audioBuffer.duration;
+     this.samples = new Float32Array();
+ };
++

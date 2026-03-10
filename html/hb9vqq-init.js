@@ -165,6 +165,8 @@ function setSolPill(label, value, cssClass) {
 
     spectrum.canvas.addEventListener('mousedown', function(e) {
       if (e.button !== 0) return;
+      const specH = spectrum.spectrumHeight || (spectrum.canvas.height * (spectrum.spectrumPercent / 100));
+      if (e.offsetY > specH) { _filterDrag = null; return; }
       const mx = e.offsetX;
       const { x0, x1, hzpp } = getFilterXs();
       const low  = parseFloat(document.getElementById('filterLowInput').value);
@@ -210,6 +212,8 @@ function setSolPill(label, value, cssClass) {
     // Change cursor on hover over filter edges/center
     spectrum.canvas.addEventListener('mousemove', function(e) {
       if (_filterDrag) return;
+      const specH = spectrum.spectrumHeight || (spectrum.canvas.height * (spectrum.spectrumPercent / 100));
+      if (e.offsetY > specH) { spectrum.canvas.style.cursor = ''; return; }
       const mx = e.offsetX;
       const { x0, x1 } = getFilterXs();
       if (mx > x0 + EDGE_TOL && mx < x1 - EDGE_TOL) {

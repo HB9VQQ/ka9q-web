@@ -531,7 +531,7 @@ input[type=range]::-webkit-slider-thumb {
     <div class="crow">
       <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:28px">Floor</span>
       <button class="cbtn" style="padding:2px 5px" onclick="baselineDown()" id="baseline_down">−</button>
-      <input type="number" id="spectrum_min" class="num-inp" value="-125" style="width:50px" onchange="setSpectrumMin()">
+      <input type="number" id="spectrum_min" class="num-inp" value="-125" style="width:52px" onchange="setSpectrumMin()">
       <button class="cbtn" style="padding:2px 5px" onclick="baselineUp()" id="baseline_up">+</button>
     </div>
   </div>
@@ -541,12 +541,12 @@ input[type=range]::-webkit-slider-thumb {
     <div class="crow">
       <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:22px">Ceil</span>
       <input type="range" id="waterfall_max_range" min="-140" max="0"   value="-65"  style="width:80px" oninput="setWaterfallMax()" title="Waterfall ceiling dBm">
-      <input type="text"  id="waterfall_max"       style="width:38px" readonly class="num-inp">
+      <input type="text"  id="waterfall_max"       style="width:46px" readonly class="num-inp">
     </div>
     <div class="crow">
       <span style="font-family:var(--f-mono);font-size:9px;color:var(--txt-dim);width:22px">Floor</span>
       <input type="range" id="waterfall_min_range" min="-150" max="-40" value="-115" style="width:80px" oninput="setWaterfallMin()" title="Waterfall floor dBm">
-      <input type="text"  id="waterfall_min"       style="width:38px" readonly class="num-inp">
+      <input type="text"  id="waterfall_min"       style="width:46px" readonly class="num-inp">
     </div>
   </div>
 

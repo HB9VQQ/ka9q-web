@@ -1451,7 +1451,8 @@ function dumpHTML() {
 
 let settingsReady = false; // Block saves until after settings are loaded and UI is initialized
 function saveSettings() {
-  if (!settingsReady) return; // Prevent saves during initialization
+  if (!settingsReady) return;
+  if (!spectrum || !spectrum.frequency) return; // Prevent saves during initialization
   localStorage.setItem("tune_hz", spectrum.frequency.toString());
   localStorage.setItem("zoom_level", document.getElementById("zoom_level").valueAsNumber);
   localStorage.setItem("min_db", spectrum.min_db.toString())
@@ -1922,10 +1923,10 @@ function toggleAudioRecording() {
       const currentFrequency = frequencyHz / 1000.0; // Convert frequency to kHz
       const currentMode = document.getElementById('mode').value; // Get the current mode
       player.stopRecording(currentFrequency, currentMode); // Pass frequency and mode
-      document.getElementById('toggleRecording').innerText = 'Record';
+      document.getElementById('toggleRecording').innerText = '⏺ Record'; document.getElementById('toggleRecording').classList.remove('recording');
   } else {
       player.startRecording();
-      document.getElementById('toggleRecording').innerText = 'Stop Recording';
+      document.getElementById('toggleRecording').innerText = '⏹ Stop Recording'; document.getElementById('toggleRecording').classList.add('recording');
   }
 
     isRecording = !isRecording;

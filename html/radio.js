@@ -1578,6 +1578,7 @@ function loadSettings() {
   spectrum.wf_max_db = parseFloat(localStorage.getItem("wf_max_db"));
   document.getElementById("waterfall_max").value = spectrum.wf_max_db;
   spectrum.spectrumPercent = parseFloat(localStorage.getItem("spectrum_percent"));
+  setTimeout(function() { if (typeof positionSpecResizer === "function") positionSpecResizer(); if (spectrum && typeof spectrum.setSpectrumPercent === "function") spectrum.setSpectrumPercent(spectrum.spectrumPercent); }, 300);
   spectrum.centerHz = parseFloat(localStorage.getItem("spectrum_center_hz"));
   centerHz = spectrum.centerHz;
   target_center = centerHz;

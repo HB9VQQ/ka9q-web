@@ -11,15 +11,20 @@
 ### Dark theme UI (`radio.html`)
 
 * Full dark theme with teal/amber/violet accent colors and scanline texture
-* Solar indices bar: SFI, A, K, Kp, SWS, DRAP — live data from dxmap.hb9vqq.ch
+* Solar indices bar: SFI, Kp, SWS, DRAP — live data from dxmap.hb9vqq.ch, updated every 5 minutes
 * UTC clock in header
 * Band selector with Amateur / Broadcast / Utility categories
 * Mode auto-switching by frequency (LSB below 10 MHz, USB above)
-* Improved Options dialog styling and positioning
-* Frequency input Enter-to-tune support
 * Resizable spectrum/waterfall with live DX overlay tracking
 * **Passband drag** — drag the grey passband bar to retune frequency
 * **Click-to-tune on DX spots** — click any callsign label to tune to that frequency
+* Keyboard shortcuts — frequency tuning and fullscreen toggle
+* Settings persistence — band, mode, frequency, DX filters and spectrum position survive page reload
+
+### Audio (`pcm-player.js`)
+
+* **Working pan slider** — stereo panning now actually works
+* **Recording** — record received audio to a .webm file with one click; button flashes red while recording
 
 ### Analog S-meter (`smeter.js`)
 
@@ -33,12 +38,13 @@
 
 * Live DX cluster spots overlaid on the spectrum as vertical dashed lines
 * Callsign labels with ◇ prefix, color-coded by mode:
-  - CW: cyan · SSB: yellow · FT8/FT4: magenta · RTTY: orange
+  * CW: cyan · SSB: yellow · FT8/FT4: magenta · RTTY: orange
 * Age fade over configurable window (default 30 min)
 * Row staggering for overlapping spots
 * Downward arrow at spectrum/waterfall boundary
 * Click-to-tune on spot frequency
 * Mode filter (ALL / CW / SSB / FT8 / FT4 / RTTY)
+* Spotter region filter (ALL / EU / NA / SA / AS / AF / OC)
 * Spot count display
 * Reconnecting WebSocket with exponential backoff
 
@@ -51,13 +57,16 @@
 * FT8/FT4 mode inference from frequency windows
 * Systemd service included (`dx-cluster-bridge.service`)
 
-### spectrum.js fixes
+### Spectrum (`spectrum.js`)
 
-* Click-to-tune suppression flag so spot clicks are not overridden by spectrum pan handler
+* Spectrum overlay traces — load and display reference spectrum traces over the live display
+* Click-to-tune suppression so DX spot clicks are not overridden by the spectrum pan handler
 
 ### radio.js patches
 
 * `-n` argument underscores display as spaces in heading and tab title
+
+
 
 ---
 

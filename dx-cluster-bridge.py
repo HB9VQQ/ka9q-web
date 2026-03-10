@@ -184,7 +184,10 @@ async def telnet_reader(args: argparse.Namespace) -> None:
             await asyncio.sleep(1)
             writer.write(f'{args.callsign}\r\n'.encode())
             await writer.drain()
-            log.info('Logged in — listening for spots')
+            log.info('Logged in — sent sh/dx/full 100, listening for spots')
+            await asyncio.sleep(2)
+            writer.write(b'sh/dx 100\r\n')
+            await writer.drain()
 
             buf = ''
             while True:

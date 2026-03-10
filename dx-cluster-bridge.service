@@ -8,7 +8,7 @@ User=radio
 ExecStart=/usr/local/bin/dx-cluster-bridge.py \
     --cluster-host dxcluster.hb9vqq.ch \
     --cluster-port 7300 \
-    --callsign HB9CU-10 \
+    --callsign HB9VQQ-6 \
     --ws-port 9373 \
     --max-age 30
 Restart=always

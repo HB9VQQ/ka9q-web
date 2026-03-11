@@ -1574,16 +1574,16 @@ function loadSettings() {
   window._restoreFreqUntil = Date.now() + 3000;
 // HB9VQQ: override server-sent center for first 5 WS packets to restore saved position
   window._restoreCenterPackets = 5; // override server center for first 5 packets
-  spectrum.min_db = parseFloat(localStorage.getItem("min_db"));
+  spectrum.min_db = parseFloat(localStorage.getItem("min_db")) || -120;
   document.getElementById("spectrum_min").value = spectrum.min_db;
-  spectrum.max_db = parseFloat(localStorage.getItem("max_db"));
+  spectrum.max_db = parseFloat(localStorage.getItem("max_db")) || 0;
   document.getElementById("spectrum_max").value = spectrum.max_db;
-  spectrum.wf_min_db = parseFloat(localStorage.getItem("wf_min_db"));
+  spectrum.wf_min_db = parseFloat(localStorage.getItem("wf_min_db")) || -120;
   spectrum.graticuleIncrement = parseFloat(localStorage.getItem("graticuleIncrement"));
   document.getElementById("waterfall_min").value = spectrum.wf_min_db;
-  spectrum.wf_max_db = parseFloat(localStorage.getItem("wf_max_db"));
+  spectrum.wf_max_db = parseFloat(localStorage.getItem("wf_max_db")) || -60;
   document.getElementById("waterfall_max").value = spectrum.wf_max_db;
-  spectrum.spectrumPercent = parseFloat(localStorage.getItem("spectrum_percent"));
+  spectrum.spectrumPercent = parseFloat(localStorage.getItem("spectrum_percent")) || 50;
   setTimeout(function() { if (typeof positionSpecResizer === "function") positionSpecResizer(); if (spectrum && typeof spectrum.setSpectrumPercent === "function") spectrum.setSpectrumPercent(spectrum.spectrumPercent); }, 300);
   spectrum.centerHz = parseFloat(localStorage.getItem("spectrum_center_hz"));
   centerHz = spectrum.centerHz;
@@ -1630,6 +1630,7 @@ function loadSettings() {
   //console.log("Loaded volume settings: ",parseFloat(localStorage.getItem("volume_control")));
   var vc = parseFloat(localStorage.getItem("volume_control"));
   document.getElementById("volume_control").value = vc;
+  if (!isFinite(vc)) vc = 0.5; // ── HB9VQQ: guard NaN on first visit ──
   setPlayerVolume(vc); // set the volue using the exponential scale
   return true;
 }

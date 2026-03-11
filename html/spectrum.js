@@ -384,7 +384,7 @@ function Spectrum(id, options) {
                         spectrum.ctx_wf.drawImage(spectrum._wf_backup, s, 0, w - s, h, 0, 0, w - s, h);
                     } else {
                         // no shift
-                        spectrum.ctx_wf.drawImage(spectrum._wf_backup, 0, 0);
+                        if (spectrum._wf_backup && spectrum._wf_backup.width > 0 && spectrum._wf_backup.height > 0) spectrum.ctx_wf.drawImage(spectrum._wf_backup, 0, 0);
                     }
                 } catch (err) {
                     console.warn('Failed to apply final waterfall shift', err);

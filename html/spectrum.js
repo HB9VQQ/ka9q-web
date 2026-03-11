@@ -468,6 +468,7 @@ Spectrum.prototype.squeeze = function(value, out_min, out_max) {
  * The resulting `imagedata` can be rendered onto the waterfall canvas to visualize signal intensity.
  */
 Spectrum.prototype.rowToImageData = function(bins) {
+    if (!this.colormap) return;
     for(var i = 0; i < this.imagedata.data.length; i += 4) {
         try {
             //var cindex = this.squeeze(-(bins[i/4]-70), 0, 255);
@@ -1288,6 +1289,7 @@ Spectrum.prototype.measureMinMax = function(data) {
 }
 
 Spectrum.prototype.updateSpectrumRatio = function() {
+    if (!this.colormap) return;
     this.spectrumHeight = Math.round(this.canvas.height * this.spectrumPercent / 100.0);
 
     // ── HB9VQQ BEGIN: guard createLinearGradient against NaN/zero height ──

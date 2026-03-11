@@ -433,6 +433,9 @@
         frequencyHz = 10000000;
         centerHz = 10000000;
         binWidthHz = 20001; // Change from 20000 Hz per bin fixes the zoom = 1 issue on load.  Must be different than a table entry!  WDR 7-3-2025
+        // ── HB9VQQ BEGIN: Firefox clientHeight fix ──
+        (function() { var wfc = document.getElementById("waterfall"); if (wfc && wfc.clientHeight === 0) { var ph = wfc.parentElement ? wfc.parentElement.clientHeight : 0; wfc.style.height = (ph > 0 ? ph : 420) + "px"; } })();
+        // ── HB9VQQ END ──
         spectrum = new Spectrum("waterfall", {spectrumPercent: 50, bins: binCount});
         setupFftAvgInput();
         
@@ -1597,7 +1600,7 @@ function loadSettings() {
   const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }
   target_preset = localStorage.getItem("preset");
   increment = parseFloat(localStorage.getItem("step"));
-  const c = parseInt(localStorage.getItem("colorIndex"));
+  const c = parseInt(localStorage.getItem("colorIndex")) || 9;
   document.getElementById("colormap").value = c;
   spectrum.colorIndex = c;
   const d = parseInt(localStorage.getItem("meterIndex"));

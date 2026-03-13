@@ -14,10 +14,27 @@
 * Solar indices bar: SFI, A, K, Kp, SWS, DRAP — live data from dxmap.hb9vqq.ch
 * UTC clock in header
 * Band selector with Amateur / Broadcast / Utility categories
-* Mode auto-switching by frequency (LSB below 10 MHz, USB above)
+* Mode auto-switching by frequency (LSB below 10 MHz, USB above, AM for broadcast)
 * Improved Options dialog styling and positioning
 * Frequency input Enter-to-tune support
 * Resizable spectrum/waterfall with live DX overlay tracking
+* Analog S-meter floating panel (draggable, analog/digital modes)
+* Audio recording, pan control, passband drag
+
+### BCL/SWL broadcast listener features
+
+* **Broadcast band plan** — LW (216 kHz), MW (1000 kHz), 120M–11M (16 bands total)
+* **AM mode auto-switch** — selecting any broadcast band automatically sets AM demodulation
+* **BCL station overlay** (`bcl-overlay.js`) — amber dashed lines with station names on the spectrum waterfall:
+  * Always on, filtered to visible frequency range
+  * Multiple stations sharing a frequency stacked vertically above the line
+  * 4-tier varying line heights (deterministic by frequency hash — visually varied)
+  * Labels suppressed when too crowded; shown in full when zoomed in
+  * 14-character name truncation
+* **EiBi + AOKI dual database** — ~6700 unique stations merged from both sources
+* **Local overrides** (`bcl_local.json`) — for stations missing from both databases (e.g. Radio Caroline 1395 kHz)
+* **User-selectable database** via Options dialog: EiBi only / AOKI only / merged
+* **Twice-yearly cron update** via `bcl_to_json.py`
 
 ### DX cluster spot overlay (`dx-cluster.js`)
 
@@ -29,6 +46,7 @@
 * Downward arrow at spectrum/waterfall boundary
 * Click-to-tune on spot frequency
 * Mode filter (ALL / CW / SSB / FT8 / FT4 / RTTY)
+* Spotter region filter (ALL / EU / NA / SA / AS / AF / OC)
 * Spot count display
 * Reconnecting WebSocket with exponential backoff
 
@@ -44,10 +62,13 @@
 ### Spectrum fixes (`spectrum.js`)
 
 * dBm axis labels corrected (negative sign)
+* CSS pixel fix for click-to-tune on non-integer DPR displays
 
 ### radio.js patches
 
 * `-n` argument underscores display as spaces in heading and tab title
+* NaN guards for increment/step on missing localStorage key
+* Band dropdown correctly repopulated on page reload
 
 ---
 
@@ -67,10 +88,25 @@
 | --- | --- |
 | `html/radio.html` | `/usr/local/share/ka9q-web/html/` |
 | `html/radio.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/hb9vqq-ui.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/hb9vqq-init.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/dx-cluster.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/bcl-overlay.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/optionsDialog.html` | `/usr/local/share/ka9q-web/html/` |
 | `html/spectrum.js` | `/usr/local/share/ka9q-web/html/` |
 | `dx-cluster-bridge.py` | `/usr/local/bin/` |
 | `dx-cluster-bridge.service` | `/etc/systemd/system/` |
+
+### Server-side files (not in repo — generated)
+
+| File | Description |
+| --- | --- |
+| `/usr/local/bin/bcl_to_json.py` | Converts EiBi + AOKI schedules to JSON |
+| `/usr/local/share/ka9q-web/html/bcl_stations.json` | Merged station database (~6700 entries) |
+| `/usr/local/share/ka9q-web/html/bcl_eibi.json` | EiBi-only database |
+| `/usr/local/share/ka9q-web/html/bcl_aoki.json` | AOKI-only database |
+| `/usr/local/share/ka9q-web/html/bcl_local.json` | Manual station overrides |
+| `/etc/cron.d/eibi-update` | Cron job for twice-yearly database update |
 
 ### Deploying HTML files
 
@@ -80,6 +116,29 @@ process to hang silently. Always `kill -HUP` after copying:
 ```bash
 sudo cp html/* /usr/local/share/ka9q-web/html/
 sudo kill -HUP $(pgrep -f "ka9q-web")
+```
+
+### BCL station database setup
+
+Generate the station database after deploying `bcl_to_json.py`:
+
+```bash
+sudo cp bcl_to_json.py /usr/local/bin/
+sudo python3 /usr/local/bin/bcl_to_json.py
+# → downloads EiBi + AOKI, writes bcl_stations.json, bcl_eibi.json, bcl_aoki.json
+```
+
+Create a local overrides file for stations missing from both databases:
+
+```bash
+echo '[]' | sudo tee /usr/local/share/ka9q-web/html/bcl_local.json
+```
+
+Set up twice-yearly cron updates (after season changes, last Sunday of March/October):
+
+```bash
+echo '0 3 29 3  * root python3 /usr/local/bin/bcl_to_json.py
+0 3 29 10 * root python3 /usr/local/bin/bcl_to_json.py' | sudo tee /etc/cron.d/eibi-update
 ```
 
 ### Bridge service
@@ -126,3 +185,4 @@ ExecStart=/usr/local/bin/dx-cluster-bridge.py \
 
 * Cosmetic polish on controls strip
 * GitHub Actions CI not yet configured for this fork
+* BCL overlay: scheduled on-air filtering (EiBi/AOKI schedule fields present in data, filter not yet implemented)

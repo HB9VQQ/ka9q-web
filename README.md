@@ -84,6 +84,12 @@ sudo kill -HUP $(pgrep -f "ka9q-web")
 
 ### Bridge service
 
+Browsers cannot make raw TCP connections — they speak only HTTP and WebSocket. DX Spider
+clusters use a plain telnet protocol (port 7300). `dx-cluster-bridge.py` sits between the
+two: it connects to your DX cluster via telnet, parses incoming spot lines into JSON, and
+re-serves them as a WebSocket stream on port 9373 that `dx-cluster.js` in the browser
+consumes to draw spots on the waterfall. Without it, the DX overlay has no data source.
+
 ```bash
 sudo cp dx-cluster-bridge.py /usr/local/bin/
 sudo chmod +x /usr/local/bin/dx-cluster-bridge.py

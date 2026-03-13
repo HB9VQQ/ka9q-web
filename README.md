@@ -35,7 +35,7 @@
 ### DX cluster bridge (`dx-cluster-bridge.py`)
 
 * Python asyncio bridge: DX Spider telnet → WebSocket JSON
-* Connects to configurable DX cluster (default: dxcluster.hb9vqq.ch:7300)
+* Connects to configurable DX cluster
 * Serves spots as JSON on ws://host:9373
 * In-memory spot cache with age pruning
 * FT8/FT4 mode inference from frequency windows
@@ -96,9 +96,9 @@ sudo ufw allow 9373/tcp comment "DX cluster WS bridge"
 ### Bridge options
 
 ```
---cluster-host   DX Spider hostname  (default: dxcluster.hb9vqq.ch)
+--cluster-host   DX Spider hostname  (required — your DX cluster)
 --cluster-port   DX Spider port      (default: 7300)
---callsign       Login callsign      (default: HB9CU-10)
+--callsign       Login callsign      (required — your callsign)
 --ws-port        WebSocket port      (default: 9373)
 --max-age        Spot max age (min)  (default: 30)
 ```

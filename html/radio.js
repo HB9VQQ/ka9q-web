@@ -1599,7 +1599,7 @@ function loadSettings() {
   const savedRegion = localStorage.getItem("dx_region"); if (savedRegion) { const r = document.getElementById("dx-region-sel"); if (r) r.value = savedRegion; }
   const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }
   target_preset = localStorage.getItem("preset");
-  increment = parseFloat(localStorage.getItem("step"));
+  increment = parseFloat(localStorage.getItem("step")) || 1000; // HB9VQQ: guard NaN when step not saved
   const c = parseInt(localStorage.getItem("colorIndex")) || 9;
   document.getElementById("colormap").value = c;
   spectrum.colorIndex = c;

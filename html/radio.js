@@ -746,6 +746,10 @@
         // Set mode based on frequency
         //console.log("setModeBasedOnFrequencyIfAllowed() called with freq=",f," switchModesByFrequency=",switchModesByFrequency);
         if(switchModesByFrequency ) {
+// HB9VQQ BEGIN: broadcast bands always use AM
+          const _bc = document.getElementById('band_category');
+          if (_bc && _bc.value === 'broadcast') { setMode('am'); return; }
+// HB9VQQ END: broadcast bands always use AM
           if (f == 2500000 || f == 5000000 || f == 10000000 || f == 15000000 || f == 20000000 ||f == 25000000) {
               setMode('am');
           } else if (f == 3330000 || f == 7850000) {
@@ -1663,6 +1667,8 @@ const bandOptions = {
         { label: "10M", freq: 28500000 }
     ],
     broadcast: [
+        { label: "LW",   freq:  216000 },
+        { label: "MW",   freq: 1000000 },
         { label: "120M", freq:2397500 },
         { label: "90M", freq: 3300000 },
         { label: "75M", freq: 3950000 },

@@ -101,13 +101,24 @@ sudo ufw allow 9373/tcp comment "DX cluster WS bridge"
 
 ### Bridge options
 
+Edit `dx-cluster-bridge.service` before deploying and set your values on the `ExecStart` line:
+
+```ini
+ExecStart=/usr/local/bin/dx-cluster-bridge.py \
+    --cluster-host your-cluster.example.com \
+    --callsign N0CALL \
+    --cluster-port 7300 \
+    --ws-port 9373 \
+    --max-age 30
 ```
---cluster-host   DX Spider hostname  (required — your DX cluster)
---cluster-port   DX Spider port      (default: 7300)
---callsign       Login callsign      (required — your callsign)
---ws-port        WebSocket port      (default: 9373)
---max-age        Spot max age (min)  (default: 30)
-```
+
+| Option | Description | Default |
+| --- | --- | --- |
+| `--cluster-host` | DX Spider telnet hostname | required |
+| `--cluster-port` | DX Spider telnet port | 7300 |
+| `--callsign` | Login callsign | required |
+| `--ws-port` | WebSocket port served to browser | 9373 |
+| `--max-age` | Spot cache age in minutes | 30 |
 
 ---
 

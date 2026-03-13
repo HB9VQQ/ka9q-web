@@ -1598,7 +1598,28 @@ function loadSettings() {
   spectrum.decay = parseFloat(localStorage.getItem("decay"));
   spectrum.cursor_active = (localStorage.getItem("cursor_active") == "true");
   document.getElementById("mode").value = localStorage.getItem("preset");
-  const savedBandCat = localStorage.getItem("band_category"); if (savedBandCat) { const bc = document.getElementById("band_category"); if (bc) bc.value = savedBandCat; }
+  const savedBandCat = localStorage.getItem("band_category");
+  if (savedBandCat) {
+    const bc = document.getElementById("band_category");
+    if (bc) {
+      bc.value = savedBandCat;
+// HB9VQQ BEGIN: repopulate band dropdown on restore (fixes LW/MW missing on reload)
+      const bandSel = document.getElementById("band");
+      if (bandSel && typeof bandOptions !== "undefined" && bandOptions[savedBandCat]) {
+        bandSel.innerHTML = "";
+        const dummy = document.createElement("option");
+        dummy.value = ""; dummy.textContent = "Select:";
+        dummy.disabled = true; dummy.selected = true;
+        bandSel.appendChild(dummy);
+        bandOptions[savedBandCat].forEach(function(opt) {
+          const o = document.createElement("option");
+          o.value = opt.freq; o.textContent = opt.label;
+          bandSel.appendChild(o);
+        });
+      }
+// HB9VQQ END: repopulate band dropdown on restore
+    }
+  }
   const savedBand = localStorage.getItem("band"); if (savedBand) { const b = document.getElementById("band"); if (b) b.value = savedBand; }
   const savedRegion = localStorage.getItem("dx_region"); if (savedRegion) { const r = document.getElementById("dx-region-sel"); if (r) r.value = savedRegion; }
   const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }

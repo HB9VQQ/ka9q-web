@@ -81,51 +81,66 @@
     ctx.save();
     ctx.font = LABEL_FONT;
 
-    // Track rightmost drawn pixel per tier to avoid label text overlap
-    const tierRightX = new Array(TIERS.length).fill(-999);
+    // Group entries by x pixel — multiple stations on same frequency stack vertically
+    const byX = new Map();
+    entries.forEach(e => {
+      if (!byX.has(e.x)) byX.set(e.x, []);
+      byX.get(e.x).push(e);
+    });
+
+    let lastLabelRightX = -999;
+    const drawnX = new Set();
 
     entries.forEach(e => {
-      const x        = e.x;
-      const lineFrac = TIERS[e.t];
-      const labelY   = LABEL_TOP + e.t * 11;
-      const lineTop  = labelY + 2;
-      const lineBot  = Math.min(specH, lineTop + Math.round((specH - lineTop) * lineFrac));
+      const x     = e.x;
+      const group = byX.get(x);
+      const nStack = group.length;
 
-      // Dashed line
-      ctx.strokeStyle = LINE_COLOR;
-      ctx.lineWidth   = 1;
-      ctx.setLineDash([3, 4]);
-      ctx.beginPath();
-      ctx.moveTo(x, lineTop);
-      ctx.lineTo(x, lineBot);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      // Line top: leave room for all stacked labels (11px each)
+      const lineTop = LABEL_TOP + nStack * 11 + 2;
+      const lineBot = Math.min(specH, lineTop + Math.round((specH - lineTop) * TIERS[e.t]));
 
-      // Tick at bottom of line
-      ctx.strokeStyle = LABEL_COLOR;
-      ctx.lineWidth   = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(x, lineBot - 3);
-      ctx.lineTo(x, lineBot + 3);
-      ctx.stroke();
+      // Draw line + tick only once per unique x
+      if (!drawnX.has(x)) {
+        drawnX.add(x);
+        ctx.strokeStyle = LINE_COLOR;
+        ctx.lineWidth   = 1;
+        ctx.setLineDash([3, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, lineTop);
+        ctx.lineTo(x, lineBot);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-      // Label — only if this line x is beyond the last label's right edge on this tier
-      const label = (e.n || '').substring(0, 10);
-      const tw    = ctx.measureText(label).width + 4;
-      if (x < tierRightX[e.t] + MIN_PX_LABEL) return;
+        ctx.strokeStyle = '#ffc832';
+        ctx.lineWidth   = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, lineBot - 3);
+        ctx.lineTo(x, lineBot + 3);
+        ctx.stroke();
 
-      // Background pill — wider padding, more opaque
-      ctx.fillStyle = 'rgba(4, 8, 16, 0.92)';
-      ctx.fillRect(x - 1, labelY - 11, tw + 5, 13);
+        // Draw all labels in group stacked, if enough space from last label block
+        if (x >= lastLabelRightX + MIN_PX_LABEL) {
+          let maxW = 0;
+          group.forEach((g, i) => {
+            const label  = (g.n || '').substring(0, 14);
+            const tw     = ctx.measureText(label).width + 6;
+            const labelY = LABEL_TOP + i * 11 + 9;
 
-      // White text with dark shadow for maximum contrast
-      ctx.shadowColor = 'rgba(0,0,0,1)';
-      ctx.shadowBlur  = 4;
-      ctx.fillStyle   = '#ffffff';
-      ctx.fillText(label, x + 2, labelY);
-      ctx.shadowBlur  = 0;
+            ctx.fillStyle = 'rgba(4, 8, 16, 0.92)';
+            ctx.fillRect(x - 1, labelY - 10, tw + 4, 12);
 
-      tierRightX[e.t] = x + tw;
+            ctx.shadowColor = 'rgba(0,0,0,1)';
+            ctx.shadowBlur  = 4;
+            ctx.fillStyle   = '#ffffff';
+            ctx.fillText(label, x + 2, labelY);
+            ctx.shadowBlur  = 0;
+
+            if (tw > maxW) maxW = tw;
+          });
+          lastLabelRightX = x + maxW;
+        }
+      }
     });
 
     ctx.restore();

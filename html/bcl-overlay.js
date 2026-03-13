@@ -114,12 +114,16 @@
       const tw    = ctx.measureText(label).width + 4;
       if (x < tierRightX[e.t] + MIN_PX_LABEL) return;
 
-      // Background pill
-      ctx.fillStyle = 'rgba(6, 11, 18, 0.80)';
-      ctx.fillRect(x + 1, labelY - 9, tw, 10);
+      // Background pill — wider padding, more opaque
+      ctx.fillStyle = 'rgba(4, 8, 16, 0.92)';
+      ctx.fillRect(x - 1, labelY - 11, tw + 5, 13);
 
-      ctx.fillStyle = LABEL_COLOR;
+      // White text with dark shadow for maximum contrast
+      ctx.shadowColor = 'rgba(0,0,0,1)';
+      ctx.shadowBlur  = 4;
+      ctx.fillStyle   = '#ffffff';
       ctx.fillText(label, x + 2, labelY);
+      ctx.shadowBlur  = 0;
 
       tierRightX[e.t] = x + tw;
     });

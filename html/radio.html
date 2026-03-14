@@ -10,6 +10,7 @@
 <script src="radio.js"></script>
 <script src="smeter.js" defer></script>
 <script src="dx-cluster.js"></script>
+<script src="bcl-overlay.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -469,9 +470,9 @@ input[type=range]::-webkit-slider-thumb {
 
   <div class="fs">
     <span class="lbl">Filter Hz</span>
-    <input id="filterLowInput"  type="number" class="num-inp" step="100" value="-1500" title="Filter low edge Hz">
+    <input id="filterLowInput"  type="number" class="num-inp" step="100" value="-1500" title="Filter low edge Hz" style="width:66px !important">
     <span style="color:var(--rule2);font-size:10px">↔</span>
-    <input id="filterHighInput" type="number" class="num-inp" step="100" value="1500"  title="Filter high edge Hz">
+    <input id="filterHighInput" type="number" class="num-inp" step="100" value="1500"  title="Filter high edge Hz" style="width:66px !important">
     <button id="edge_button" class="cbtn" onclick="sendFilterEdges()" style="padding:2px 6px;margin-left:2px" title="Send filter edges">Edge</button>
   </div>
 

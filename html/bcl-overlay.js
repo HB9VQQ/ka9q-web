@@ -59,6 +59,10 @@
     const H   = _canvas.height;
     ctx.clearRect(0, 0, W, H);
 
+    // Only show overlay when Broadcast category is selected
+    const _cat = document.getElementById('band_category');
+    if (!_cat || _cat.value !== 'broadcast') return;
+
     const startHz = _spectrum.start_freq;
     const spanHz  = _spectrum.spanHz;
     if (!startHz || !spanHz) return;
@@ -193,6 +197,10 @@
     // Restore saved DB selection in the options dialog
     const _sel = document.getElementById('bclDbSelect');
     if (_sel) _sel.value = BCL_JSON_URL;
+
+    // Redraw (clear) when band category changes
+    const _catEl = document.getElementById('band_category');
+    if (_catEl) _catEl.addEventListener('change', () => draw());
 
     window._bclOverlay = {
       draw,

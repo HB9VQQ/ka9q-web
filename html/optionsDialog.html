@@ -67,13 +67,18 @@
          <button id="load_max" type="button" style="font-size:12px; padding:2px 4px; min-width:0; min-height:0; height:24px; margin-top:4px;" title="Load and display max, min or spectrum data">Load Data</button>
          <button id="clear_overlay" type="button" style="font-size:12px; padding:2px 4px; min-width:0; min-height:0; height:24px; margin-top:4px; margin-left:4px;" title="Clear loaded overlay trace">Clear Data</button>
       </div>
-     <div style="font-size:12px;margin-top:8px;display:flex;align-items:center;gap:8px;border-top:1px solid #1e3a5a;padding-top:6px;">
-      <label for="bclDbSelect" style="white-space:nowrap;">BCL Station DB:</label>
+    <div style="font-size:12px;margin-top:8px;display:flex;align-items:center;gap:10px;border-top:1px solid #1e3a5a;padding-top:6px;flex-wrap:wrap;">
+      <label for="bclDbSelect" style="white-space:nowrap;color:#c8d8e8;">BCL Station DB:</label>
       <select id="bclDbSelect" style="font-size:12px;height:24px;" onchange="if(window._bclOverlay){window._bclOverlay.setDb(this.value);}localStorage.setItem('bcl_db',this.value);">
         <option value="bcl_stations.json">EiBi + AOKI (merged)</option>
         <option value="bcl_eibi.json">EiBi only</option>
         <option value="bcl_aoki.json">AOKI only</option>
       </select>
+      <label style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;color:#c8d8e8;">
+        <input type="checkbox" id="bclOnAirCb" style="accent-color:#00d4c8;"
+               onchange="localStorage.setItem('bcl_onair',this.checked);">
+        Now on air only
+      </label>
     </div>
     </form>
 </div>

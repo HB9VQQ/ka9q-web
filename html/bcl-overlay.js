@@ -37,6 +37,20 @@
     return h % TIERS.length;
   }
 
+  function isOnAir(station) {
+    if (!station.s || station.s.length === 0) return null;
+    var now=new Date(), utcMins=now.getUTCHours()*60+now.getUTCMinutes();
+    var dayNum=now.getUTCDay(); if(dayNum===0) dayNum=7;
+    return station.s.some(function(slot) {
+      if(slot.d && slot.d.indexOf(String(dayNum))===-1) return false;
+      var s=parseInt(slot.t.substring(0,4)), e=parseInt(slot.t.substring(5,9));
+      var sm=Math.floor(s/100)*60+(s%100), em=Math.floor(e/100)*60+(e%100);
+      if(em<=sm) return utcMins>=sm||utcMins<em;
+      return utcMins>=sm&&utcMins<em;
+    });
+  }
+  function filterActive() { var cb=document.getElementById('bclOnAirCb'); return cb&&cb.checked; }
+
   function loadStations() {
     const bust = '?t=' + Math.floor(Date.now() / 3600000);
     Promise.all([
@@ -82,12 +96,22 @@
 
     if (!entries.length) return;
 
+    var _filterOn = filterActive();
+    var visEntries = _filterOn
+      ? entries.map(function(e) {
+          var air=isOnAir(e);
+          if(air===false||air===null) return null;
+          return e;
+        }).filter(Boolean)
+      : entries;
+    if (!visEntries.length) { ctx.clearRect(0,0,W,H); return; }
+
     ctx.save();
     ctx.font = LABEL_FONT;
 
     // Group entries by x pixel — multiple stations on same frequency stack vertically
     const byX = new Map();
-    entries.forEach(e => {
+    visEntries.forEach(e => {
       if (!byX.has(e.x)) byX.set(e.x, []);
       byX.get(e.x).push(e);
     });
@@ -95,7 +119,7 @@
     let lastLabelRightX = -999;
     const drawnX = new Set();
 
-    entries.forEach(e => {
+    visEntries.forEach(e => {
       const x     = e.x;
       const group = byX.get(x);
       const nStack = group.length;
@@ -194,9 +218,15 @@
       }
     }, 500);
 
-    // Restore saved DB selection in the options dialog
+    // Restore saved DB + on-air checkbox state
     const _sel = document.getElementById('bclDbSelect');
     if (_sel) _sel.value = BCL_JSON_URL;
+    const _cb = document.getElementById('bclOnAirCb');
+    if (_cb) _cb.checked = localStorage.getItem('bcl_onair') === 'true';
+
+    // Redraw when on-air checkbox toggled
+    const _cbEl = document.getElementById('bclOnAirCb');
+    if (_cbEl) _cbEl.addEventListener('change', () => draw());
 
     // Redraw (clear) when band category changes
     const _catEl = document.getElementById('band_category');

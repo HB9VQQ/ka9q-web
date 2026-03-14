@@ -35,6 +35,7 @@
 * **Local overrides** (`bcl_local.json`) — for stations missing from both databases (e.g. Radio Caroline 1395 kHz)
 * **User-selectable database** via Options dialog: EiBi only / AOKI only / merged
 * **Twice-yearly cron update** via `bcl_to_json.py`
+* **On-air filter** — "Now on air only" checkbox in Options dialog hides stations not currently broadcasting according to EiBi schedule data
 
 ### DX cluster spot overlay (`dx-cluster.js`)
 
@@ -125,7 +126,8 @@ Generate the station database after deploying `bcl_to_json.py`:
 ```bash
 sudo cp bcl_to_json.py /usr/local/bin/
 sudo python3 /usr/local/bin/bcl_to_json.py
-# → downloads EiBi + AOKI, writes bcl_stations.json, bcl_eibi.json, bcl_aoki.json
+# → downloads EiBi + AOKI, writes bcl_stations.json (~550 KB), bcl_eibi.json, bcl_aoki.json
+# → bcl_stations.json includes EiBi schedule data for on-air filtering
 ```
 
 Create a local overrides file for stations missing from both databases:
@@ -185,4 +187,4 @@ ExecStart=/usr/local/bin/dx-cluster-bridge.py \
 
 * Cosmetic polish on controls strip
 * GitHub Actions CI not yet configured for this fork
-* BCL overlay: scheduled on-air filtering (EiBi/AOKI schedule fields present in data, filter not yet implemented)
+* BCL overlay: scheduled filtering uses EiBi data only — AOKI-only entries hidden when filter is active

@@ -498,6 +498,12 @@
 
     function onWheel(e) {
       e.preventDefault();
+// HB9VQQ BEGIN: Ctrl+wheel zooms spectrum
+      if (e.ctrlKey) {
+        if (e.deltaY < 0) zoomin(); else zoomout();
+        return;
+      }
+// HB9VQQ END: Ctrl+wheel zooms spectrum
       if (!spectrum.cursor_active) {
         if(e.deltaY<0) {
           //scroll up

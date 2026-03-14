@@ -308,3 +308,25 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 });
 
+// ── HB9VQQ BEGIN: fullscreen wf-wrap (includes dx-overlay + bcl-overlay) ──
+(function overrideFullscreen() {
+  function doOverride() {
+    if (typeof spectrum === 'undefined' || spectrum === null) {
+      setTimeout(doOverride, 100);
+      return;
+    }
+    spectrum.toggleFullscreen = function() {
+      const wfw = document.getElementById('wf-wrap');
+      if (!wfw) return;
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        wfw.requestFullscreen().catch(function(e) {
+          console.warn('Fullscreen failed:', e);
+        });
+      }
+    };
+  }
+  doOverride();
+})();
+// ── HB9VQQ END: fullscreen wf-wrap ──

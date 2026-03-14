@@ -669,8 +669,9 @@
     document.addEventListener('fullscreenchange', function() {
       try {
         const wf = document.getElementById('waterfall');
-        if (document.fullscreenElement === wf) {
-          // give it focus so it receives keyboard events
+        // HB9VQQ: wf-wrap may be fullscreen instead of waterfall canvas
+        const fsEl = document.fullscreenElement;
+        if (fsEl === wf || fsEl === document.getElementById('wf-wrap')) {
           wf.focus();
         }
       } catch (e) {

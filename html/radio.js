@@ -792,6 +792,29 @@
       }
   
       // Reinitialize the PCMPlayer with the new configuration
+      // ── HB9VQQ BEGIN: rmnoise mode hook ──
+      (function() {
+          var supported = ['usb','lsb','cwu','cwl'].indexOf((selected_mode||'').toLowerCase()) >= 0;
+          if (!supported && window.rmNoiseBridge && rmNoiseBridge.enabled && !rmNoiseBridge.bypass) {
+              rmNoiseBridge.bypass = true;
+              // Post bypass to worklet
+              if (rmNoiseBridge.workletNode) {
+                  rmNoiseBridge.workletNode.port.postMessage({ type: 'bypass', value: true });
+              }
+              // Update toolbar button
+              var b = document.getElementById('rmn-quick-toggle');
+              var c = document.getElementById('rmn-cog-btn');
+              if (b) { b.disabled = false; b.style.opacity = '0.6'; b.style.backgroundColor = '#888'; }
+              if (c) { c.disabled = false; c.style.opacity = '0.6'; c.style.backgroundColor = '#888'; }
+              // Update modal bypass button
+              var m = document.getElementById('rmn-bypass-modal-btn');
+              if (m) { m.style.background = '#888'; m.textContent = '⏭ BYPASSED'; }
+          }
+      })();
+      if (window.rmNoise_updateModeSupport) {
+          window.rmNoise_updateModeSupport(selected_mode);
+      }
+      // ── HB9VQQ END: rmnoise mode hook ──
       player.destroy(); // Destroy the existing player instance
       player = new PCMPlayer({
           encoding: '16bitInt',

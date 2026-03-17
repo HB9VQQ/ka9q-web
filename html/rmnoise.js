@@ -26,6 +26,63 @@ const RM_SERVER = 'wss://s2.rmnoise.com:8766';
 // RM_BASE (https://rmnoise.com) is no longer used for fetch() calls — the Go
 // server-side CORS proxy handles those.  RM_SERVER is still used for WebSocket.
 
+// ── DelayBuffer ────────────────────────────────────────────────────────────────
+//
+// [HB9VQQ] Phase 4b: Circular ring buffer that delays audio by a variable number
+// of samples.  Used to time-align the original audio with the denoised audio so
+// that blending them at any mix ratio produces no echo.
+//
+// Why this is echo-free:
+//   The denoised audio returned by rmNoise_process() corresponds to audio that
+//   was sent to the server ~RTT ms ago.  If we blend it with the *current*
+//   original audio we get two copies of different moments → echo.
+//   DelayBuffer.process() reads back from the ring buffer `delaySamples` ago,
+//   so both signals correspond to the same moment in time.
+//
+// RTT adaptivity: delaySamples = lastLatencyMs * sampleRate / 1000.
+//   The read pointer automatically adjusts each call as RTT changes.
+//   No explicit tracking or re-priming required.
+//
+class DelayBuffer {
+    /**
+     * @param {number} maxSamples  maximum delay in samples (ring buffer size)
+     */
+    constructor(maxSamples) {
+        this.buf  = new Float32Array(maxSamples);
+        this.size = maxSamples;
+        this.wPos = 0;
+    }
+
+    /**
+     * Write `input` into the ring buffer, then read back `delaySamples` ago.
+     * Both write and read advance by input.length on each call.
+     *
+     * @param {Float32Array} input
+     * @param {number}       delaySamples  must be < this.size
+     * @returns {Float32Array}  delayed copy, same length as input
+     */
+    process(input, delaySamples) {
+        const n     = input.length;
+        const out   = new Float32Array(n);
+        const delay = Math.max(n, Math.min(Math.round(delaySamples), this.size - 1));
+        const size  = this.size;
+
+        for (let i = 0; i < n; i++) {
+            const w = this.wPos % size;
+            this.buf[w] = input[i];
+            const r = ((this.wPos - delay + size * 4) % size);
+            out[i] = this.buf[r];
+            this.wPos++;
+        }
+        return out;
+    }
+
+    reset() {
+        this.buf.fill(0);
+        this.wPos = 0;
+    }
+}
+
 // ── OversizeBuffer ─────────────────────────────────────────────────────────────
 //
 // Adapted from the known-good audio_mixer_processor.js reference implementation.
@@ -189,7 +246,11 @@ function rmNoise_createOversizeBuffers(inputRate) {
     return { downsampleOSB, upsampleOSB };
 }
 
-// ── State ──────────────────────────────────────────────────────────────────────
+// LPF group delay = (numTaps-1)/2 = (1001-1)/2 = 500 samples at 12 kHz = 41.7 ms.
+// Used to pre-delay the raw orig so it aligns with the LPF-processed denoised output.
+const RM_LPF_GROUP_DELAY = 500;
+
+
 const rmNoise = {
     enabled:          false,
     bypass:           false,   // legacy — kept for compatibility but superseded by mixRatio
@@ -218,9 +279,31 @@ const rmNoise = {
     jitterMax:        20,
 
     // Accumulators
-    accumIn:          new Float32Array(0),   // input samples at inputRate
-    accumOut:         new Float32Array(0),   // denoised 8 kHz samples
-    origQueue:        [],                    // [HB9VQQ] original frames queued for mix
+    accumIn:          new Float32Array(0),   // input samples at inputRate (LPF-filtered, for server send path)
+    accumOut:         new Float32Array(0),   // denoised 8 kHz samples (intermediate)
+
+    // [HB9VQQ] Phase 4b: raw audio delay line for time-aligned orig in blend.
+    // Pre-filled with RM_LPF_GROUP_DELAY zeros so that slicing in lockstep with
+    // accumIn gives raw audio that corresponds to the same time window as the
+    // LPF-processed audio sent to the server (whose output is also delayed by
+    // RM_LPF_GROUP_DELAY samples due to the causal FIR group delay).
+    // Using raw audio (not LPF-filtered) as orig avoids the metallic comb-filter
+    // artifact that arises from blending two differently-shaped LPF-limited signals.
+
+    // [HB9VQQ] Phase 4b: frame-number keyed original store for echo-free blend.
+    // Key = Number(frameNum), value = Float32Array at inputRate (one accumTarget chunk).
+    // Blend is performed in dc.onmessage when the denoised frame arrives — at that
+    // moment both original and denoised correspond to the same wire-protocol frame,
+    // so mixing them at any ratio produces no echo regardless of RTT.
+    origFrameMap:     new Map(),
+    origFrameMapMax:  300,    // evict oldest when this many unmatched entries build up
+
+    // AI lookahead delay line for JS blend path (HTTP — no AudioWorklet).
+    // Same compensation as ORIG_DELAY_48K in the worklet but at inputRate (12kHz).
+    // 300 samples @ 8kHz × (12000/8000) = 450 samples @ 12kHz = 37.5ms.
+    origBlendDelay:   null,   // Float32Array delay line, lazy-init in rmNoise_blendFrame
+
+    blendedBuf:       new Float32Array(0),
 
     // Pre-buffering: don't output denoised audio until we have a reserve built up.
     // At 8 kHz, RM_FRAME=384 samples = 48 ms per frame.
@@ -247,12 +330,15 @@ const rmNoise = {
     downsampleOSB:    null,   // send path  (inputRate → 8 kHz)
     upsampleOSB:      null,   // receive path (8 kHz → inputRate)
 
+    // [HB9VQQ] Phase 4b: AudioWorklet mixer node.
+    // When non-null, rmNoise_process() returns silence and the worklet
+    // handles all audio output via its AudioNode connected to player.gainNode.
+    workletNode:      null,
+    workletLoading:   false,   // synchronous re-entry guard for ensureWorklet
+
     // 2.8 kHz send-path LPF — keeps the AI model in its trained voice-bandwidth
     // domain.  Coefficients and state are initialised lazily in rmNoise_process()
     // and reset on sample-rate change.
-    lpfCoeffs:        null,   // Float32Array of FIR taps
-    lpfState:         null,   // Float32Array delay line (length = taps - 1)
-    lpfRate:          0,      // sample rate for which lpfCoeffs were designed
 };
 
 // Expose globally so app.js can call rmNoise_process()
@@ -376,12 +462,30 @@ function rmNoise_process(audioFloat, sampleRate) {
         return null;   // not connected — caller uses original audio
     }
 
+    // [HB9VQQ] Phase 4b: lazy AudioWorklet init — fires once after audio is flowing.
+    // workletLoading is set synchronously to prevent re-entry across async gap.
+    // audioWorklet existence check guards against webkitAudioContext fallback or
+    // any other context type that doesn't support AudioWorklet.
+    if (!rmNoise.workletNode && !rmNoise.workletLoading
+            && window.rmNoiseAudioCtx
+            && window.rmNoiseAudioCtx.audioWorklet
+            && window.rmNoiseAudioCtx.state === 'running'
+            && window.rmNoise_ensureWorklet) {
+        rmNoise.workletLoading = true;
+        window.rmNoise_ensureWorklet(window.rmNoiseAudioCtx);   // async, fire-and-forget
+    }
+
     // Update rate if changed — flush all state so stale context doesn't bleed in
     if (rmNoise.inputRate !== sampleRate || !rmNoise.downsampleOSB) {
         rmNoise.inputRate   = sampleRate;
         rmNoise.accumIn     = new Float32Array(0);
+        rmNoise.lpfCoeffs   = null;
+        rmNoise.lpfState    = null;
+        rmNoise.lpfRate     = 0;
         rmNoise.accumOut    = new Float32Array(0);
-        rmNoise.origQueue   = [];
+        rmNoise.blendedBuf  = new Float32Array(0);
+        rmNoise.origFrameMap.clear();
+    rmNoise.origBlendDelay = null;
         rmNoise.primed      = false;
         const bufs = rmNoise_createOversizeBuffers(sampleRate);
         rmNoise.downsampleOSB = bufs.downsampleOSB;
@@ -391,42 +495,37 @@ function rmNoise_process(audioFloat, sampleRate) {
     const nIn        = audioFloat.length;
     const accumTarget = Math.round(RM_FRAME * sampleRate / RM_RATE);
 
-    // ── 2.8 kHz LPF — keep AI model in its trained voice-bandwidth domain ─────
-    // The RMNoise AI is a voice denoiser trained on ~300–2800 Hz content.
-    // Audio wider than ~2700 Hz causes the model to produce discontinuous output
-    // frames (pops).  We apply a stateful windowed-sinc FIR LPF at 2800 Hz here,
-    // before the send path, regardless of the UI bandwidth setting.
-    //
-    // The filter coefficients and state are initialised lazily and stored on the
-    // rmNoise object so state is preserved across 240-sample chunk boundaries
-    // (no edge artifacts).  The design mirrors NoiseBlanker.designFIRLowpass()
-    // and NoiseBlanker.applyAudioFilter() in noise-blanker.js.
+    // ── Send-path LPF: anti-alias before 12kHz→8kHz downsampling ─────────────
+    // ka9q-web SSB demodulator outputs 12kHz but voice content is only 300-2800Hz.
+    // Above 2800Hz is SDR noise.  Without a pre-filter, that noise aliases into
+    // the 2-4kHz voice band during 12kHz→8kHz downsampling, degrading AI quality.
+    // rmnoise.com applies a zero-phase elliptical LPF at ~4kHz before downsampling.
+    // We apply a causal FIR at 3kHz — removes aliasing noise, preserves voice band.
+    // This filter is applied to the SEND PATH ONLY — chunk (for blend orig) stays raw.
     if (!rmNoise.lpfCoeffs || rmNoise.lpfRate !== sampleRate) {
         rmNoise.lpfRate   = sampleRate;
-        rmNoise.lpfCoeffs = rmNoise_designLPF(2800, sampleRate);
+        rmNoise.lpfCoeffs = rmNoise_designLPF(3000, sampleRate);
         rmNoise.lpfState  = new Float32Array(rmNoise.lpfCoeffs.length - 1);
     }
     const sendAudio = rmNoise_applyLPF(audioFloat, rmNoise.lpfCoeffs, rmNoise.lpfState);
 
-    // ── Send path: accumulate → downsample → pack → send ──────────────────────
+    // accumIn holds LPF-filtered audio for the server send path.
+    // Raw audioFloat is stored separately as orig for the blend (full bandwidth).
     const newAccumIn = new Float32Array(rmNoise.accumIn.length + nIn);
     newAccumIn.set(rmNoise.accumIn);
     newAccumIn.set(sendAudio, rmNoise.accumIn.length);
     rmNoise.accumIn = newAccumIn;
 
+    // Used as blend orig so partial mix has full 0-6kHz bandwidth.
+
     while (rmNoise.accumIn.length >= accumTarget) {
         const chunk = rmNoise.accumIn.slice(0, accumTarget);
         rmNoise.accumIn = rmNoise.accumIn.slice(accumTarget);
 
-        // [HB9VQQ] Queue original chunk for time-aligned mixing on output
-        rmNoise.origQueue.push(chunk.slice());
-        // Cap origQueue to prevent unbounded growth (~3 seconds)
-        while (rmNoise.origQueue.length > 150) rmNoise.origQueue.shift();
+        // Raw chunk (unfiltered) — used as blend orig
 
         try {
-            // Downsample to 8 kHz using Lanczos resampler + OversizeBuffer.
-            // The OversizeBuffer pads the chunk with context from adjacent
-            // frames so the Lanczos kernel has valid data at the edges.
+            // Downsample LPF-filtered audio to 8 kHz for server
             const oversizedChunk = rmNoise.downsampleOSB.addFrame(chunk);
             const oversizedDown  = lanczosResample(oversizedChunk, sampleRate, RM_RATE);
             const pcm8k_good     = rmNoise.downsampleOSB.goodFrame(oversizedDown);
@@ -468,132 +567,200 @@ function rmNoise_process(audioFloat, sampleRate) {
                 rmNoise.dc.send(packed);
             }
 
+            // [HB9VQQ] Phase 4b: store LPF-filtered chunk as blend orig.
+            // rmnoise.com stores filtFiltEllipticalFilter.process(frame48k) as orig —
+            // the SAME filtered audio sent to the server. Both sides of the blend
+            // use the same filtered signal. We do the same: chunk (LPF-filtered)
+            // is both sent to the server AND stored as orig.
+            rmNoise.origFrameMap.set(Number(frameNum), chunk.slice());
+            if (rmNoise.origFrameMap.size > rmNoise.origFrameMapMax) {
+                rmNoise.origFrameMap.delete(rmNoise.origFrameMap.keys().next().value);
+            }
+
+            // [HB9VQQ] Phase 4b: post LPF-filtered orig frame to AudioWorklet
+            if (rmNoise.workletNode) {
+                const _wOrig = chunk.slice();
+                rmNoise.workletNode.port.postMessage(
+                    { type: 'orig', frameNum: Number(frameNum), samples: _wOrig },
+                    [ _wOrig.buffer ]
+                );
+            }
+
             rmNoise.frameNum = frameNum + BigInt(1);
         } catch (e) {
             console.error('[RMNoise] Send error:', e);
         }
     }
 
-    // ── Receive path: drain jitter buffer → accumOut ──────────────────────────
-    while (rmNoise.jitterBuf.length > 0) {
-        const frame  = rmNoise.jitterBuf.shift();
-        const merged = new Float32Array(rmNoise.accumOut.length + frame.length);
-        merged.set(rmNoise.accumOut);
-        merged.set(frame, rmNoise.accumOut.length);
-        rmNoise.accumOut = merged;
+    // ── Receive path: drain blendedBuf (pre-blended at inputRate) ─────────────
+    // [HB9VQQ] Phase 4b: blend is performed in dc.onmessage keyed by frameNum,
+    // so original and denoised are always from the same wire frame — echo-free.
+    // blendedBuf accumulates pre-blended Float32Array chunks at inputRate.
+    if (rmNoise.workletNode) {
+        return new Float32Array(audioFloat.length);   // silence — worklet handles playback
     }
 
-    // Cap accumOut to prevent unbounded growth during network bursts.
-    // If the backlog exceeds ~500 ms of 8 kHz audio (4000 samples), drop the
-    // oldest samples so the output stays close to real-time.  Without this cap,
-    // a burst of server frames fills accumOut far ahead of the playback cursor;
-    // when the jitter buffer later hits its own limit and drops whole frames,
-    // there is a hard discontinuity in accumOut that plays as a loud pop.
-    //
-    // When we trim, also reset the upsampleOSB context buffer.  It holds the
-    // tail of the audio that is about to be discarded; if we leave it intact
-    // the Lanczos kernel will bridge across the discontinuity and produce a
-    // transient artifact on the very next upsample call.
-    const accumOutMax = 4000;   // ~500 ms at 8 kHz
-    if (rmNoise.accumOut.length > accumOutMax) {
-        rmNoise.accumOut = rmNoise.accumOut.slice(rmNoise.accumOut.length - accumOutMax);
-        if (rmNoise.upsampleOSB) rmNoise.upsampleOSB.reset();
-    }
-
-    // Wait until we have primeFrames worth of 8 kHz data buffered before
-    // starting playback.  This absorbs the network round-trip so we never
-    // starve the output.
-    const primeThreshold = RM_FRAME * rmNoise.primeFrames;
+    // Priming: wait until blendedBuf has enough data to absorb RTT jitter.
+    // At inputRate=12000, primeFrames*accumTarget samples covers the initial RTT.
+    const primeThreshold = rmNoise.primeFrames * Math.round(RM_FRAME * sampleRate / RM_RATE);
     if (!rmNoise.primed) {
-        if (rmNoise.accumOut.length >= primeThreshold) {
+        if (rmNoise.blendedBuf.length >= primeThreshold) {
             rmNoise.primed = true;
-            rmNoise_log(`Buffer primed (${rmNoise.accumOut.length} samples @ 8 kHz) — denoising active`);
+            rmNoise_log(`Buffer primed (${rmNoise.blendedBuf.length} samples @ ${sampleRate} Hz) — denoising active`);
         } else {
-            // Still filling — return silence (like Python client) so the
-            // caller doesn't fall back to original audio during priming.
-            return new Float32Array(audioFloat.length);
+            return new Float32Array(audioFloat.length);   // still filling — return silence
         }
     }
 
-    // How many 8 kHz samples do we need to cover nIn input samples?
-    // Use ceil so we always have enough 8 kHz data to produce nIn output samples
-    // after upsampling.  The OversizeBuffer trims edge samples, so we need a
-    // slight surplus to ensure the "good" portion covers the full output.
-    const n8kNeeded = Math.ceil(nIn * RM_RATE / sampleRate);
-
-    if (rmNoise.accumOut.length >= n8kNeeded) {
-        const chunk8k    = rmNoise.accumOut.slice(0, n8kNeeded);
-        rmNoise.accumOut = rmNoise.accumOut.slice(n8kNeeded);
-
-        // Upsample from 8 kHz → sampleRate using Lanczos + OversizeBuffer.
-        // The OversizeBuffer provides context so edge artifacts are trimmed.
-        const oversized8k  = rmNoise.upsampleOSB.addFrame(chunk8k);
-        const oversizedUp  = lanczosResample(oversized8k, RM_RATE, sampleRate);
-        const upsampled    = rmNoise.upsampleOSB.goodFrame(oversizedUp);
-
-        // Trim or zero-pad to exactly nIn samples
-        let denoised;
-        if (upsampled.length >= nIn) {
-            denoised = upsampled.slice(0, nIn);
-        } else {
-            denoised = new Float32Array(nIn);
-            denoised.set(upsampled);
-        }
-
-        // [HB9VQQ] Time-aligned blend: pop matching original from queue.
-        // origQueue stores frames in send order.  Denoised audio returns in the
-        // same order after ~RTT ms, so the FIFO HEAD of origQueue corresponds to
-        // the denoised audio currently in accumOut — no extra delay alignment needed.
-        const mix = rmNoise.mixRatio != null ? rmNoise.mixRatio : 1.0;
-        if (mix >= 1.0) {
-            return denoised;
-        } else if (rmNoise.origQueue.length > 0) {
-            // Accumulate original chunks to match nIn samples
-            let origAccum = new Float32Array(0);
-            while (origAccum.length < nIn && rmNoise.origQueue.length > 0) {
-                const chunk = rmNoise.origQueue.shift();
-                const merged = new Float32Array(origAccum.length + chunk.length);
-                merged.set(origAccum);
-                merged.set(chunk, origAccum.length);
-                origAccum = merged;
-            }
-            // [HB9VQQ] Push remainder back to front — prevents alignment drift when
-            // origAccum overshoots nIn due to fixed chunk size (576 samples at 12 kHz)
-            // not dividing evenly into nIn.  Without this, each call discards up to
-            // 575 samples, draining origQueue ~1 chunk/call regardless of push rate.
-            if (origAccum.length > nIn) {
-                rmNoise.origQueue.unshift(origAccum.slice(nIn));
-                origAccum = origAccum.slice(0, nIn);
-            }
-            if (mix <= 0.0) {
-                // 100% original requested (no bypass, but mix at zero).
-                // Return the time-aligned delayed original so latency is consistent
-                // with non-zero mix values — avoids a timing jump when mix is raised.
-                return origAccum;
-            }
-            const blended = new Float32Array(nIn);
-            for (let i = 0; i < nIn; i++) {
-                blended[i] = denoised[i] * mix + origAccum[i] * (1 - mix);
-            }
-            return blended;
-        } else {
-            return denoised;
-        }
+    if (rmNoise.blendedBuf.length >= nIn) {
+        const out = rmNoise.blendedBuf.slice(0, nIn);
+        rmNoise.blendedBuf = rmNoise.blendedBuf.slice(nIn);
+        return out;
     }
 
-    // accumOut ran dry (network hiccup) — return silence to avoid a jarring
-    // switch back to original audio.  Do NOT reset primed: the Python client
-    // never re-primes after the initial prime, it just returns silence on
-    // underrun and resumes denoised audio as soon as data is available again.
+    // blendedBuf ran dry (network hiccup) — return silence
     return new Float32Array(audioFloat.length);
 }
 
+// ── dc.onmessage blend helper ──────────────────────────────────────────────────
+
+/**
+ * Called from dc.onmessage when a denoised 8 kHz frame arrives.
+ * Looks up the original frame in origFrameMap (keyed by frameNum),
+ * upsamples denoised 8 kHz → inputRate, blends, appends to blendedBuf.
+ *
+ * @param {BigInt}      frameNum
+ * @param {Float32Array} pcm8k_f32  denoised at 8 kHz
+ */
+function rmNoise_blendFrame(frameNum, pcm8k_f32) {
+    const mix = rmNoise.mixRatio != null ? rmNoise.mixRatio : 1.0;
+    const rate = rmNoise.inputRate;
+    const key  = Number(frameNum);
+
+    // Upsample denoised 8 kHz → inputRate using direct stateless Lanczos resampling.
+    const denoised = lanczosResample(pcm8k_f32, RM_RATE, rate);
+    const nFrame   = denoised.length;   // e.g. 576 at 12 kHz
+
+    let blended;
+
+    if (mix >= 1.0) {
+        blended = new Float32Array(nFrame);
+        blended.set(denoised);
+    } else {
+        const origRaw = rmNoise.origFrameMap.get(key);
+        rmNoise.origFrameMap.delete(key);
+
+        if (origRaw) {
+            // Band-limit orig to 0–4kHz (round-trip downsample+upsample).
+            const origDown = lanczosResample(origRaw, rate, RM_RATE);
+            const origBL   = lanczosResample(origDown, RM_RATE, rate);
+
+            // Apply AI lookahead delay: 300 samples @ 8kHz = 450 samples @ 12kHz = 37.5ms.
+            // The AI model has a built-in 300-sample lookahead @ 8kHz — without this delay
+            // orig is 37.5ms ahead of denoised, producing audible echo at that delay.
+            const delaySamples = Math.round(300 * rate / RM_RATE);  // 450 @ 12kHz
+            if (!rmNoise.origBlendDelay || rmNoise.origBlendDelay.length !== delaySamples) {
+                rmNoise.origBlendDelay = new Float32Array(delaySamples);
+            }
+            // Shift delay line and produce delayed output
+            const origDelayed = new Float32Array(origBL.length);
+            const dLen = rmNoise.origBlendDelay.length;
+            for (let i = 0; i < origBL.length; i++) {
+                origDelayed[i] = i < dLen ? rmNoise.origBlendDelay[i] : origBL[i - dLen];
+            }
+            // Update delay line with tail of origBL
+            const tail = origBL.slice(Math.max(0, origBL.length - dLen));
+            if (tail.length >= dLen) {
+                rmNoise.origBlendDelay.set(tail.slice(tail.length - dLen));
+            } else {
+                rmNoise.origBlendDelay.copyWithin(0, tail.length);
+                rmNoise.origBlendDelay.set(tail, dLen - tail.length);
+            }
+
+            const orig = origDelayed;
+            const len  = Math.min(nFrame, orig.length);
+
+            if (mix <= 0.0) {
+                blended = orig.slice(0, len);
+            } else {
+                blended = new Float32Array(len);
+                for (let i = 0; i < len; i++) {
+                    blended[i] = denoised[i] * mix + orig[i] * (1.0 - mix);
+                }
+            }
+        } else {
+            // Original evicted or missing — fall back to denoised
+            blended = new Float32Array(nFrame);
+            blended.set(denoised);
+        }
+    }
+
+    // Cap blendedBuf to ~1 s at inputRate to prevent unbounded growth
+    const blendedMax = rate;
+    if (rmNoise.blendedBuf.length + blended.length > blendedMax) {
+        rmNoise.blendedBuf = rmNoise.blendedBuf.slice(rmNoise.blendedBuf.length + blended.length - blendedMax);
+    }
+
+    const merged = new Float32Array(rmNoise.blendedBuf.length + blended.length);
+    merged.set(rmNoise.blendedBuf);
+    merged.set(blended, rmNoise.blendedBuf.length);
+    rmNoise.blendedBuf = merged;
+}
+
 // ── Connection ─────────────────────────────────────────────────────────────────
+
+// ── AudioWorklet setup ─────────────────────────────────────────────────────────
+
+/**
+ * Load ka9q-rmnoise-worklet.js into the given AudioContext and create an
+ * AudioWorkletNode connected to window.player.gainNode.
+ *
+ * Called once per connect (idempotent — skips if workletNode already exists).
+ * On failure (e.g. insecure context, old browser), logs a warning and leaves
+ * rmNoise.workletNode = null so rmNoise_process() falls back to the JS path.
+ *
+ * @param {AudioContext} audioCtx
+ */
+// ── HB9VQQ BEGIN: rmnoise AudioWorklet setup ──
+async function rmNoise_ensureWorklet(audioCtx) {
+    if (rmNoise.workletNode) return;   // already loaded
+
+    try {
+        await audioCtx.audioWorklet.addModule('ka9q-rmnoise-worklet.js');
+        const node = new AudioWorkletNode(audioCtx, 'rmnoise-processor', {
+            numberOfInputs:     0,
+            numberOfOutputs:    1,
+            outputChannelCount: [1],
+        });
+        // Connect to gainNode so volume and pan controls apply to worklet output
+        if (window.rmNoiseGainNode) {
+            node.connect(window.rmNoiseGainNode);
+        } else {
+            node.connect(audioCtx.destination);
+        }
+        // Seed current mix ratio (may have been set before connection)
+        node.port.postMessage({ type: 'mix', value: rmNoise.mixRatio });
+
+        rmNoise.workletNode    = node;
+        rmNoise.workletLoading = false;
+        rmNoise_log('AudioWorklet mixer loaded ✓');
+    } catch (e) {
+        rmNoise.workletLoading = false;   // allow retry if context changes
+        console.warn('[RMNoise] AudioWorklet unavailable — falling back to JS blend:', e);
+        rmNoise_log('AudioWorklet unavailable — using JS blend (mix slider limited)');
+        // workletNode stays null → rmNoise_process JS path is used
+    }
+}
+// ── HB9VQQ END: rmnoise AudioWorklet setup ──
 
 async function rmNoise_connect(username, password, filterNumber) {
     if (rmNoise.connecting || rmNoise.ready) return;
     rmNoise.connecting = true;
     rmNoise.filterNumber = filterNumber || 1;
+
+    // [HB9VQQ] Phase 4b: AudioWorklet is initialised lazily from rmNoise_process()
+    // on the first call after audio is flowing, so the AudioContext is guaranteed
+    // to be in running state (audioWorklet defined) at that point.
 
     rmNoise_setStatus('Connecting…', 'orange');
     rmNoise_log(`Connecting to RMNoise as '${username}' (filter ${rmNoise.filterNumber})…`);
@@ -783,11 +950,33 @@ async function rmNoise_setupWebRTC(ws, iceServers) {
                 rmNoise.lastLatencyMs = lat;
             }
 
-            // Push to jitter buffer (drop oldest if full)
-            if (rmNoise.jitterBuf.length >= rmNoise.jitterMax) {
-                rmNoise.jitterBuf.shift();
+            // [HB9VQQ] Phase 4b: blend this denoised frame with its matching original
+            // (from origFrameMap) and append to blendedBuf.  Frame-number keyed —
+            // original and denoised are the same wire frame → echo-free at any mix.
+            if (rmNoise.upsampleOSB) {
+                rmNoise_blendFrame(frameNum, pcm8k_f32);
+            } else {
+                // upsampleOSB not yet initialised (rate not yet known) — push to
+                // legacy jitterBuf as fallback so priming still works
+                if (rmNoise.jitterBuf.length >= rmNoise.jitterMax) rmNoise.jitterBuf.shift();
+                rmNoise.jitterBuf.push(pcm8k_f32);
             }
-            rmNoise.jitterBuf.push(pcm8k_f32);
+
+            // [HB9VQQ] Phase 4b: post denoised frame to AudioWorklet at native 8kHz.
+            // Do NOT upsample to 12kHz here.  lanczosResample(8kHz→12kHz) introduces
+            // ~2 samples of group delay at 12kHz, causing a comb-filter notch at 3kHz
+            // when mixed against orig (which has zero intermediate delay).
+            // The worklet upsamples both orig (12kHz→48kHz) and den (8kHz→48kHz)
+            // independently — the resulting group delay mismatch is only ~20µs,
+            // placing any comb notch at 24kHz (inaudible).
+            if (rmNoise.workletNode) {
+                const _wDen = new Float32Array(pcm8k_f32.length);
+                _wDen.set(pcm8k_f32);   // transferable copy
+                rmNoise.workletNode.port.postMessage(
+                    { type: 'den', frameNum: Number(frameNum), samples: _wDen },
+                    [ _wDen.buffer ]
+                );
+            }
 
         } catch (e) {
             console.error('[RMNoise] Server audio error:', e);
@@ -849,13 +1038,23 @@ async function rmNoise_disconnect() {
     rmNoise.connecting = false;
     rmNoise.primed     = false;
     rmNoise.accumIn    = new Float32Array(0);
+    rmNoise.lpfCoeffs  = null;
+    rmNoise.lpfState   = null;
+    rmNoise.lpfRate    = 0;
     rmNoise.accumOut   = new Float32Array(0);
-    rmNoise.origQueue  = [];                   // [HB9VQQ] flush stale originals — avoids misaligned blend on reconnect
+    rmNoise.blendedBuf = new Float32Array(0);
+    rmNoise.origFrameMap.clear();
+    rmNoise.origBlendDelay = null;
     rmNoise.jitterBuf  = [];
     rmNoise.sendTimes.clear();
     rmNoise.frameNum   = BigInt(0);
     rmNoise.downsampleOSB = null;
     rmNoise.upsampleOSB   = null;
+
+    // [HB9VQQ] Phase 4b: flush AudioWorklet queues on disconnect
+    if (rmNoise.workletNode) {
+        rmNoise.workletNode.port.postMessage({ type: 'reset' });
+    }
 }
 
 // ── Toggle functions ───────────────────────────────────────────────────────────
@@ -897,10 +1096,16 @@ function toggleRMNoiseQuick() {
 
 function toggleRMNoiseBypass() {
     rmNoise.bypass = !rmNoise.bypass;
-    const btn = document.getElementById('rmnoise-original-btn');
+    const btn = document.getElementById('rmn-bypass-modal-btn');
     if (btn) {
         btn.textContent  = rmNoise.bypass ? '● Original' : 'Original';
         btn.style.color  = rmNoise.bypass ? '#ff6b6b' : '';
+    }
+    // [HB9VQQ] Phase 4b: tell worklet to output silence when bypassed.
+    // pcm-player plays raw audio through gainNode when bypass=true.
+    // Worklet stays connected — no connect/disconnect to avoid stale gainNode refs.
+    if (rmNoise.workletNode) {
+        rmNoise.workletNode.port.postMessage({ type: 'bypass', value: rmNoise.bypass });
     }
 }
 
@@ -1038,6 +1243,10 @@ function rmNoise_onMixChanged(value) {
     localStorage.setItem('rmnoise_mix', pct);
     const el = document.getElementById('rmnoise-mix-value');
     if (el) el.textContent = pct + '% Filtered';
+    // [HB9VQQ] Phase 4b: propagate mix to AudioWorklet
+    if (rmNoise.workletNode) {
+        rmNoise.workletNode.port.postMessage({ type: 'mix', value: rmNoise.mixRatio });
+    }
 }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────────
@@ -1060,6 +1269,8 @@ function rmNoise_updateButton() {
     let colour;
     if (rmNoise.connecting) {
         colour = '#fd7e14';  // orange
+    } else if (rmNoise.bypass && rmNoise.enabled) {
+        colour = '#888';     // grey (bypassed)
     } else if (rmNoise.ready && rmNoise.enabled) {
         colour = '#28a745';  // green
     } else if (!rmNoise.enabled) {
@@ -1072,7 +1283,7 @@ function rmNoise_updateButton() {
     if (cog) cog.style.backgroundColor = colour;
 
     // Original button
-    const origBtn = document.getElementById('rmnoise-original-btn');
+    const origBtn = document.getElementById('rmn-bypass-modal-btn');
     if (origBtn) {
         origBtn.disabled = !(rmNoise.ready && rmNoise.enabled);
     }
@@ -1197,33 +1408,65 @@ async function rmNoise_updateModeSupport(mode) {
         }
         if (cb) {
             cb.disabled = false;
-            cb.checked = rmNoise.enabled;  // ── HB9VQQ: restore checked state ──
+            cb.checked = rmNoise.enabled;
         }
-    } else {
-        // Disable controls
-        if (btn) {
-            btn.disabled = true;
-            btn.title    = 'RMNoise is only available in USB / LSB / CWU / CWL modes';
-            btn.style.opacity = '0.4';
-            btn.style.cursor  = 'not-allowed';
-        }
-        if (cogBtn) {
-            cogBtn.disabled = true;
-            cogBtn.style.opacity = '0.4';
-            cogBtn.style.cursor  = 'not-allowed';
-        }
-        if (cb) {
-            cb.disabled = true;
-        }
-
-        // Disconnect if currently active
-        if (rmNoise.enabled || rmNoise.ready || rmNoise.connecting) {
-            rmNoise_log(`Mode changed to ${mode.toUpperCase()} — RMNoise disabled (unsupported mode)`);
-            rmNoise.enabled = false;
-            await rmNoise_disconnect();
-            rmNoise_setStatus('Disabled (unsupported mode)', 'grey');
+        // If bypass was set due to unsupported mode, clear it now
+        if (rmNoise.enabled && rmNoise.bypass) {
+            rmNoise.bypass = false;
+            if (rmNoise.workletNode) {
+                rmNoise.workletNode.port.postMessage({ type: 'bypass', value: false });
+            }
+            rmNoise_setStatus('Connected ✓', 'green');
             rmNoise_updateButton();
-            rmNoise_syncCheckbox();
+            const bypassBtn = document.getElementById('rmn-bypass-modal-btn');
+            if (bypassBtn) {
+                bypassBtn.textContent = '⏭ Bypass';
+                bypassBtn.style.background = '#6f42c1';
+            }
+            rmNoise_log(`Mode changed to ${mode.toUpperCase()} — RMNoise resumed`);
+        }    } else {
+        if (cb) cb.disabled = true;
+
+        // Enable bypass if currently active — keeps connection alive so switching
+        // back to SSB/CW resumes instantly without needing to reconnect.
+        if ((rmNoise.enabled || rmNoise.ready) && !rmNoise.bypass) {
+            rmNoise_log(`Mode changed to ${mode.toUpperCase()} — RMNoise bypassed (unsupported mode)`);
+            rmNoise.bypass = true;
+            if (rmNoise.workletNode) {
+                rmNoise.workletNode.port.postMessage({ type: 'bypass', value: true });
+            }
+            rmNoise_setStatus('Bypassed (unsupported mode)', 'grey');
+            // Don't disable the RMN button — just set it grey.
+            // Chrome ignores backgroundColor on disabled buttons, so we keep it
+            // enabled but styled grey to show bypassed state.
+            if (btn) {
+                btn.disabled      = false;
+                btn.style.opacity = '0.6';
+                btn.style.backgroundColor = '#888';
+            }
+            if (cogBtn) {
+                cogBtn.disabled      = false;
+                cogBtn.style.opacity = '0.6';
+                cogBtn.style.backgroundColor = '#888';
+            }
+            const bypassBtn = document.getElementById('rmn-bypass-modal-btn');
+            if (bypassBtn) {
+                bypassBtn.textContent = '⏭ BYPASSED';
+                bypassBtn.style.background = '#888';
+            }
+        } else if (!rmNoise.enabled && !rmNoise.ready) {
+            // Not active — just disable the button
+            if (btn) {
+                btn.disabled = true;
+                btn.title    = 'RMNoise is only available in USB / LSB / CWU / CWL modes';
+                btn.style.opacity = '0.4';
+                btn.style.cursor  = 'not-allowed';
+            }
+            if (cogBtn) {
+                cogBtn.disabled = true;
+                cogBtn.style.opacity = '0.4';
+                cogBtn.style.cursor  = 'not-allowed';
+            }
         }
     }
 }
@@ -1240,7 +1483,13 @@ function rmNoise_onSampleRateChange(newRate) {
 
     rmNoise.inputRate     = newRate;
     rmNoise.accumIn       = new Float32Array(0);
+    rmNoise.lpfCoeffs     = null;
+    rmNoise.lpfState      = null;
+    rmNoise.lpfRate       = 0;
     rmNoise.accumOut      = new Float32Array(0);
+    rmNoise.blendedBuf    = new Float32Array(0);
+    rmNoise.origFrameMap.clear();
+    rmNoise.origBlendDelay = null;
     rmNoise.jitterBuf     = [];           // critical: discard stale 8 kHz frames
     rmNoise.primed        = false;
     rmNoise.frameNum      = BigInt(0);
@@ -1248,11 +1497,6 @@ function rmNoise_onSampleRateChange(newRate) {
     rmNoise.rateChangedAt = performance.now(); // arms the 300 ms in-flight discard window
     rmNoise.downsampleOSB = null;
     rmNoise.upsampleOSB   = null;
-    // Force LPF redesign at the new rate (lpfCoeffs check in rmNoise_process
-    // uses lpfRate !== sampleRate to detect this).
-    rmNoise.lpfCoeffs     = null;
-    rmNoise.lpfState      = null;
-    rmNoise.lpfRate       = 0;
 }
 
 // ── Expose globals for app.js ──────────────────────────────────────────────────
@@ -1268,3 +1512,4 @@ window.rmNoise_process              = rmNoise_process;
 window.rmNoise_onSampleRateChange   = rmNoise_onSampleRateChange;
 window.rmNoise_updateModeSupport    = rmNoise_updateModeSupport;
 window.rmNoise_isModeSupported      = rmNoise_isModeSupported;
+window.rmNoise_ensureWorklet        = rmNoise_ensureWorklet;   // [HB9VQQ] Phase 4b: called from pcm-player.js createContext

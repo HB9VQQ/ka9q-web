@@ -174,7 +174,20 @@ PCMPlayer.prototype.destroy = function() {
 
 PCMPlayer.prototype.flush = function() {
     if (this._destroyed) return;       // [HB9VQQ] guard: interval may fire after destroy()
-    if (!this.samples.length) return;
+    // ── HB9VQQ BEGIN: rmnoise hook ──
+    if (window.rmNoiseBridge && window.rmNoiseBridge.enabled && this.option.channels === 1) {
+        var _rmDenoised = window.rmNoise_process(this.samples, this.option.sampleRate);
+        if (_rmDenoised) {
+            var _rmMix = window.rmNoiseBridge.mixRatio;
+                var _rmMixed = new Float32Array(this.samples.length);
+                for (var _rmi = 0; _rmi < this.samples.length; _rmi++) {
+                    _rmMixed[_rmi] = (1 - _rmMix) * this.samples[_rmi] + _rmMix * (_rmDenoised[_rmi] || 0);
+                }
+                this.samples = _rmMixed;
+            }
+        }
+    }
+    // ── HB9VQQ END: rmnoise hook ──
     var bufferSource = this.audioCtx.createBufferSource(),
         length = this.samples.length / this.option.channels,
         audioBuffer = this.audioCtx.createBuffer(this.option.channels, length, this.option.sampleRate),

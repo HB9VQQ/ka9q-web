@@ -189,6 +189,7 @@ PCMPlayer.prototype.flush = function() {
         }
     }
     // ── HB9VQQ END: rmnoise hook ──
+    if (!this.samples.length) return;   // guard: hook may have zeroed samples
     var bufferSource = this.audioCtx.createBufferSource(),
         length = this.samples.length / this.option.channels,
         audioBuffer = this.audioCtx.createBuffer(this.option.channels, length, this.option.sampleRate),

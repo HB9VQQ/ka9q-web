@@ -626,6 +626,10 @@ input[type=range]::-webkit-slider-thumb {
       <button class="cbtn purple" id="OptionsButton" title="Additional options">⚙ Options</button>
       <button class="cbtn" onclick="document.getElementById('help-modal').style.display='flex'" title="Help" style="padding:3px 8px">? Help</button>
       <button class="cbtn" id="toggleRecording" onclick="toggleAudioRecording()" style="padding:3px 8px">⏺ Record</button>
+      <!-- ── HB9VQQ BEGIN: rmnoise buttons ── -->
+      <button id="rmn-quick-toggle" class="cbtn" title="RMNoise AI Denoising Settings"
+              style="background:#6f42c1;padding:3px 8px">🤖 RMN</button>
+      <!-- ── HB9VQQ END: rmnoise buttons ── -->
       <button class="cbtn" style="padding:3px 7px" title="Toggle fullscreen (or press F)"
               onclick="if(document.fullscreenElement)document.exitFullscreen();else document.getElementById('wf-wrap').requestFullscreen()">⛶</button>
     </div>
@@ -796,6 +800,9 @@ input[type=range]::-webkit-slider-thumb {
 <script src="hb9vqq-ui.js"></script>
 
 <script src="hb9vqq-init.js"></script>
+<!-- ── HB9VQQ BEGIN: rmnoise script ── -->
+<script src="rmnoise.js"></script>
+<!-- ── HB9VQQ END: rmnoise script ── -->
 
 <div id="help-modal" style="
   display:none; position:fixed; inset:0; z-index:1000;
@@ -849,5 +856,87 @@ input[type=range]::-webkit-slider-thumb {
     <div style="color:#557755;font-size:9px;margin-top:14px;">rx888.hb9vqq.ch — HB9VQQ — github.com/HB9VQQ/ka9q-web</div>
   </div>
 </div>
+<!-- ── HB9VQQ BEGIN: rmnoise modal ── -->
+<div id="rmnoise-modal" style="display:none; position:fixed; inset:0;
+     background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center">
+  <div style="background:#1a1a2e; border:1px solid #00bcd4; border-radius:8px;
+              padding:20px; width:420px; max-width:95vw; color:#e0e0e0; font-family:Arial,sans-serif">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+      <span style="font-weight:bold; color:#00bcd4">RM Noise AI Denoising</span>
+      <button onclick="closeRMNoiseModal()"
+              style="background:#dc3545; color:#fff; border:none; border-radius:4px;
+                     padding:2px 8px; cursor:pointer; font-size:14px">&#x2715;</button>
+    </div>
+    <div style="font-size:11px; color:#888; text-transform:uppercase; margin-bottom:6px">Credentials (rmnoise.com)</div>
+    <div style="display:grid; grid-template-columns:80px 1fr; gap:6px; align-items:center; margin-bottom:8px">
+      <label>Username</label>
+      <input id="rmnoise-username" type="text" autocomplete="username"
+             style="background:#0d0d1a; border:1px solid #444; color:#e0e0e0;
+                    border-radius:4px; padding:4px 8px; width:100%; box-sizing:border-box">
+      <label>Password</label>
+      <input id="rmnoise-password" type="password" autocomplete="current-password"
+             style="background:#0d0d1a; border:1px solid #444; color:#e0e0e0;
+                    border-radius:4px; padding:4px 8px; width:100%; box-sizing:border-box">
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px">
+      <button onclick="rmNoise_saveCredentials()"
+              style="background:#00bcd4; color:#000; border:none; border-radius:4px;
+                     padding:5px 14px; cursor:pointer; font-weight:bold">Save Credentials</button>
+      <span style="font-size:12px; color:#888">
+        No account? <a href="https://rmnoise.com/account/registration/" target="_blank"
+                       style="color:#00bcd4">Register</a>
+      </span>
+    </div>
+    <div style="font-size:11px; color:#888; text-transform:uppercase; margin-bottom:6px">AI Filter (Model)</div>
+    <div style="display:grid; grid-template-columns:60px minmax(0,1fr); gap:6px; align-items:center; margin-bottom:6px">
+      <label>Filter</label>
+      <select id="rmnoise-filter-select" onchange="rmNoise_onFilterChanged()"
+              style="background:#0d0d1a; border:1px solid #444; color:#e0e0e0;
+                     border-radius:4px; padding:4px 8px">
+        <option value="1">(connect to load filters&#x2026;)</option>
+      </select>
+      <label>Mix</label>
+      <div style="display:flex; align-items:center; gap:8px">
+        <input id="rmnoise-mix-slider" type="range" min="0" max="100" value="100"
+               oninput="rmNoise_onMixChanged(this.value)"
+               style="flex:1; accent-color:#00bcd4">
+        <span id="rmnoise-mix-value" style="min-width:90px; font-size:12px">100% Filtered</span>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer">
+        <input id="rmnoise-enable-checkbox" type="checkbox"
+               onchange="toggleRMNoise()" style="accent-color:#00bcd4">
+        Enable RMNoise Denoising
+      </label>
+      <span id="rmnoise-status-text" style="font-size:12px; color:#888">Disconnected</span>
+      <button id="rmn-bypass-modal-btn" onclick="
+          if (window.rmNoiseBridge) {
+              window.rmNoiseBridge.bypass = !window.rmNoiseBridge.bypass;
+              var bypassed = window.rmNoiseBridge.bypass;
+              this.style.background = bypassed ? '#888' : '#6f42c1';
+              this.textContent = bypassed ? '⏭ BYPASSED' : '⏭ Bypass';
+              var ctrlBtn = document.getElementById('rmn-bypass-btn');
+              if (ctrlBtn) { ctrlBtn.style.background = bypassed ? '#888' : '#6f42c1'; }
+          }"
+          style="background:#6f42c1; color:#fff; border:none; border-radius:4px;
+                 padding:4px 10px; cursor:pointer; font-size:12px">⏭ Bypass</button>
+    </div>
+    <div style="font-size:11px; color:#888; text-transform:uppercase; margin-bottom:6px">Statistics</div>
+    <div style="display:flex; gap:20px; align-items:center; margin-bottom:6px; font-size:12px">
+      <span>Jitter Buffer: <span id="rmnoise-jitter">-- frames</span></span>
+      <span>Round-trip: <span id="rmnoise-latency">-- ms</span></span>
+    </div>
+    <div style="background:#0d0d1a; border-radius:4px; height:8px; margin-bottom:14px; overflow:hidden">
+      <div id="rmnoise-jitter-fill" style="height:100%; width:0%; background:#28a745; transition:width 0.3s"></div>
+    </div>
+    <div style="font-size:11px; color:#888; text-transform:uppercase; margin-bottom:4px">Log</div>
+    <div id="rmnoise-log"
+         style="background:#0d0d1a; border:1px solid #333; border-radius:4px;
+                height:90px; overflow-y:auto; font-family:monospace; font-size:11px;
+                padding:6px; color:#aaa"></div>
+  </div>
+</div>
+<!-- ── HB9VQQ END: rmnoise modal ── -->
 </body>
 </html>

@@ -175,17 +175,12 @@ PCMPlayer.prototype.destroy = function() {
 PCMPlayer.prototype.flush = function() {
     if (this._destroyed) return;       // [HB9VQQ] guard: interval may fire after destroy()
     // ── HB9VQQ BEGIN: rmnoise hook ──
-    if (window.rmNoiseBridge && window.rmNoiseBridge.enabled && this.option.channels === 1) {
-        var _rmDenoised = window.rmNoise_process(this.samples, this.option.sampleRate);
-        if (_rmDenoised) {
-            var _rmMix = window.rmNoiseBridge.mixRatio;
-            if (!window.rmNoiseBridge.bypass && _rmMix > 0) {
-                var _rmMixed = new Float32Array(this.samples.length);
-                for (var _rmi = 0; _rmi < this.samples.length; _rmi++) {
-                    _rmMixed[_rmi] = (1 - _rmMix) * this.samples[_rmi] + _rmMix * (_rmDenoised[_rmi] || 0);
-                }
-                this.samples = _rmMixed;
-            }
+    // Blending with original is handled inside rmNoise_process() via origQueue.
+    if (window.rmNoiseBridge && window.rmNoiseBridge.enabled && this.option.channels === 1
+            && !window.rmNoiseBridge.bypass) {
+        var _rmResult = window.rmNoise_process(this.samples, this.option.sampleRate);
+        if (_rmResult !== null) {
+            this.samples = _rmResult;
         }
     }
     // ── HB9VQQ END: rmnoise hook ──

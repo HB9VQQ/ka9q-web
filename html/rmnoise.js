@@ -220,6 +220,7 @@ const rmNoise = {
     // Accumulators
     accumIn:          new Float32Array(0),   // input samples at inputRate
     accumOut:         new Float32Array(0),   // denoised 8 kHz samples
+    origQueue:        [],                    // [HB9VQQ] original frames queued for mix
 
     // Pre-buffering: don't output denoised audio until we have a reserve built up.
     // At 8 kHz, RM_FRAME=384 samples = 48 ms per frame.
@@ -380,6 +381,7 @@ function rmNoise_process(audioFloat, sampleRate) {
         rmNoise.inputRate   = sampleRate;
         rmNoise.accumIn     = new Float32Array(0);
         rmNoise.accumOut    = new Float32Array(0);
+        rmNoise.origQueue   = [];
         rmNoise.primed      = false;
         const bufs = rmNoise_createOversizeBuffers(sampleRate);
         rmNoise.downsampleOSB = bufs.downsampleOSB;
@@ -415,6 +417,11 @@ function rmNoise_process(audioFloat, sampleRate) {
     while (rmNoise.accumIn.length >= accumTarget) {
         const chunk = rmNoise.accumIn.slice(0, accumTarget);
         rmNoise.accumIn = rmNoise.accumIn.slice(accumTarget);
+
+        // [HB9VQQ] Queue original chunk for time-aligned mixing on output
+        rmNoise.origQueue.push(chunk.slice());
+        // Cap origQueue to prevent unbounded growth (~3 seconds)
+        while (rmNoise.origQueue.length > 150) rmNoise.origQueue.shift();
 
         try {
             // Downsample to 8 kHz using Lanczos resampler + OversizeBuffer.
@@ -525,12 +532,35 @@ function rmNoise_process(audioFloat, sampleRate) {
         const upsampled    = rmNoise.upsampleOSB.goodFrame(oversizedUp);
 
         // Trim or zero-pad to exactly nIn samples
+        let denoised;
         if (upsampled.length >= nIn) {
-            return upsampled.slice(0, nIn);
+            denoised = upsampled.slice(0, nIn);
         } else {
-            const result = new Float32Array(nIn);
-            result.set(upsampled);
-            return result;
+            denoised = new Float32Array(nIn);
+            denoised.set(upsampled);
+        }
+
+        // [HB9VQQ] Time-aligned blend: pop matching original from queue
+        const mix = rmNoise.mixRatio != null ? rmNoise.mixRatio : 1.0;
+        if (mix >= 1.0) {
+            return denoised;
+        } else if (mix > 0.0 && rmNoise.origQueue.length > 0) {
+            // Accumulate original chunks to match nIn samples
+            let origAccum = new Float32Array(0);
+            while (origAccum.length < nIn && rmNoise.origQueue.length > 0) {
+                const chunk = rmNoise.origQueue.shift();
+                const merged = new Float32Array(origAccum.length + chunk.length);
+                merged.set(origAccum);
+                merged.set(chunk, origAccum.length);
+                origAccum = merged;
+            }
+            const blended = new Float32Array(nIn);
+            for (let i = 0; i < nIn; i++) {
+                blended[i] = denoised[i] * mix + (origAccum[i] || 0) * (1 - mix);
+            }
+            return blended;
+        } else {
+            return denoised;
         }
     }
 
@@ -1051,6 +1081,16 @@ function openRMNoiseModal() {
     const modal = document.getElementById('rmnoise-modal');
     if (!modal) return;
     rmNoise_loadCredentials();
+    // ── HB9VQQ BEGIN: rmnoise — sync checkbox + bypass btn state on open ──
+    const cb = document.getElementById('rmnoise-enable-checkbox');
+    if (cb) cb.checked = rmNoise.enabled;
+    const bypassBtn = document.getElementById('rmn-bypass-modal-btn');
+    if (bypassBtn) {
+        const bypassed = window.rmNoiseBridge && window.rmNoiseBridge.bypass;
+        bypassBtn.style.background = bypassed ? '#888' : '#6f42c1';
+        bypassBtn.textContent = bypassed ? '⏭ BYPASSED' : '⏭ Bypass';
+    }
+    // ── HB9VQQ END: rmnoise ──
     modal.style.display = 'flex';
 }
 
@@ -1073,19 +1113,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape') closeRMNoiseModal();
     });
 
-    // RMN button: left-click toggles (or opens modal if no creds)
+    // RMN button: always opens modal
     const rmnBtn = document.getElementById('rmn-quick-toggle');
     if (rmnBtn) {
         rmnBtn.addEventListener('click', (e) => {
-            const hasCreds = localStorage.getItem('rmnoise_username') &&
-                             localStorage.getItem('rmnoise_password');
-            if (!hasCreds) {
-                openRMNoiseModal();
-            } else {
-                toggleRMNoise();
-            }
+            openRMNoiseModal();
         });
-
     }
 
     // Load saved credentials into modal fields
@@ -1146,6 +1179,7 @@ async function rmNoise_updateModeSupport(mode) {
         }
         if (cb) {
             cb.disabled = false;
+            cb.checked = rmNoise.enabled;  // ── HB9VQQ: restore checked state ──
         }
     } else {
         // Disable controls

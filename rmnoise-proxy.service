@@ -1,0 +1,13 @@
+[Unit]
+Description=RMNoise Credentials Proxy
+After=network.target
+
+[Service]
+Type=simple
+User=radio
+ExecStart=/usr/local/bin/rmnoise-proxy.py --port 9374
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

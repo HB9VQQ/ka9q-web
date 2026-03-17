@@ -51,6 +51,24 @@ PCMPlayer.prototype.createContext = function() {
     this.gainNode = this.audioCtx.createGain();
     this.gainNode.gain.value = 1;
 
+    // [HB9VQQ] Phase 4b: expose AudioContext + gainNode globally so rmnoise.js can
+    // load the AudioWorklet.  radio.js keeps player as a local var so window.player
+    // is not available — these globals are the bridge instead.
+    window.rmNoiseAudioCtx = this.audioCtx;
+    window.rmNoiseGainNode = this.gainNode;
+
+    // [HB9VQQ] Phase 4b: if RMNoise is already enabled (reconnect after mode change),
+    // initialise or reconnect the worklet to the new context/gainNode now.
+    if (window.rmNoiseBridge && window.rmNoise_ensureWorklet) {
+        if (window.rmNoiseBridge.workletNode) {
+            // Mode change: context rebuilt — reconnect existing worklet node
+            try { window.rmNoiseBridge.workletNode.connect(this.gainNode); } catch (_wce) {}
+        } else if (window.rmNoiseBridge.enabled) {
+            // Worklet not yet loaded but RMNoise active — load it now
+            window.rmNoise_ensureWorklet(this.audioCtx);
+        }
+    }
+
     // [HB9VQQ] StereoPannerNode: gainNode → _pannerNode → destination
     this._pannerNode = this.audioCtx.createStereoPanner();
     this._pannerNode.pan.value = 0;
@@ -175,12 +193,18 @@ PCMPlayer.prototype.destroy = function() {
 PCMPlayer.prototype.flush = function() {
     if (this._destroyed) return;       // [HB9VQQ] guard: interval may fire after destroy()
     // ── HB9VQQ BEGIN: rmnoise hook ──
-    // Blending with original is handled inside rmNoise_process() via origQueue.
     if (window.rmNoiseBridge && window.rmNoiseBridge.enabled && this.option.channels === 1
             && !window.rmNoiseBridge.bypass) {
-        var _rmResult = window.rmNoise_process(this.samples, this.option.sampleRate);
-        if (_rmResult !== null) {
-            this.samples = _rmResult;
+        if (window.rmNoiseBridge.workletNode) {
+            // Worklet active: it owns the audio output. pcm-player plays silence.
+            window.rmNoise_process(this.samples, this.option.sampleRate);
+            this.samples = new Float32Array(this.samples.length);
+        } else {
+            // No worklet (HTTP): JS blend path.
+            var _rmResult = window.rmNoise_process(this.samples, this.option.sampleRate);
+            if (_rmResult !== null) {
+                this.samples = _rmResult;
+            }
         }
     }
     // ── HB9VQQ END: rmnoise hook ──

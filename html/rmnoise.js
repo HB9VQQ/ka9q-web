@@ -540,11 +540,14 @@ function rmNoise_process(audioFloat, sampleRate) {
             denoised.set(upsampled);
         }
 
-        // [HB9VQQ] Time-aligned blend: pop matching original from queue
+        // [HB9VQQ] Time-aligned blend: pop matching original from queue.
+        // origQueue stores frames in send order.  Denoised audio returns in the
+        // same order after ~RTT ms, so the FIFO HEAD of origQueue corresponds to
+        // the denoised audio currently in accumOut — no extra delay alignment needed.
         const mix = rmNoise.mixRatio != null ? rmNoise.mixRatio : 1.0;
         if (mix >= 1.0) {
             return denoised;
-        } else if (mix > 0.0 && rmNoise.origQueue.length > 0) {
+        } else if (rmNoise.origQueue.length > 0) {
             // Accumulate original chunks to match nIn samples
             let origAccum = new Float32Array(0);
             while (origAccum.length < nIn && rmNoise.origQueue.length > 0) {
@@ -554,9 +557,23 @@ function rmNoise_process(audioFloat, sampleRate) {
                 merged.set(chunk, origAccum.length);
                 origAccum = merged;
             }
+            // [HB9VQQ] Push remainder back to front — prevents alignment drift when
+            // origAccum overshoots nIn due to fixed chunk size (576 samples at 12 kHz)
+            // not dividing evenly into nIn.  Without this, each call discards up to
+            // 575 samples, draining origQueue ~1 chunk/call regardless of push rate.
+            if (origAccum.length > nIn) {
+                rmNoise.origQueue.unshift(origAccum.slice(nIn));
+                origAccum = origAccum.slice(0, nIn);
+            }
+            if (mix <= 0.0) {
+                // 100% original requested (no bypass, but mix at zero).
+                // Return the time-aligned delayed original so latency is consistent
+                // with non-zero mix values — avoids a timing jump when mix is raised.
+                return origAccum;
+            }
             const blended = new Float32Array(nIn);
             for (let i = 0; i < nIn; i++) {
-                blended[i] = denoised[i] * mix + (origAccum[i] || 0) * (1 - mix);
+                blended[i] = denoised[i] * mix + origAccum[i] * (1 - mix);
             }
             return blended;
         } else {
@@ -833,6 +850,7 @@ async function rmNoise_disconnect() {
     rmNoise.primed     = false;
     rmNoise.accumIn    = new Float32Array(0);
     rmNoise.accumOut   = new Float32Array(0);
+    rmNoise.origQueue  = [];                   // [HB9VQQ] flush stale originals — avoids misaligned blend on reconnect
     rmNoise.jitterBuf  = [];
     rmNoise.sendTimes.clear();
     rmNoise.frameNum   = BigInt(0);

@@ -858,14 +858,19 @@ input[type=range]::-webkit-slider-thumb {
 </div>
 <!-- ── HB9VQQ BEGIN: rmnoise modal ── -->
 <div id="rmnoise-modal" style="display:none; position:fixed; inset:0;
-     background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center">
-  <div style="background:#1a1a2e; border:1px solid #00bcd4; border-radius:8px;
-              padding:20px; width:420px; max-width:95vw; color:#e0e0e0; font-family:Arial,sans-serif">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
-      <span style="font-weight:bold; color:#00bcd4">RM Noise AI Denoising</span>
+     background:none; z-index:1000; pointer-events:none">
+  <div id="rmnoise-panel" style="background:#1a1a2e; border:1px solid #00bcd4; border-radius:8px;
+              padding:20px; width:420px; max-width:95vw; color:#e0e0e0; font-family:Arial,sans-serif;
+              position:fixed; top:80px; right:24px; pointer-events:all;
+              box-shadow:0 4px 24px rgba(0,0,0,0.7);">
+    <div id="rmnoise-titlebar"
+         style="display:flex; justify-content:space-between; align-items:center;
+                margin-bottom:14px; cursor:move; user-select:none"
+         title="Drag to move">
+      <span style="font-weight:bold; color:#00bcd4">⠿ RM Noise AI Denoising</span>
       <button onclick="closeRMNoiseModal()"
               style="background:#dc3545; color:#fff; border:none; border-radius:4px;
-                     padding:2px 8px; cursor:pointer; font-size:14px">&#x2715;</button>
+                     padding:2px 8px; cursor:pointer; font-size:14px">✕</button>
     </div>
     <div style="font-size:11px; color:#888; text-transform:uppercase; margin-bottom:6px">Credentials (rmnoise.com)</div>
     <div style="display:grid; grid-template-columns:80px 1fr; gap:6px; align-items:center; margin-bottom:8px">
@@ -883,7 +888,7 @@ input[type=range]::-webkit-slider-thumb {
               style="background:#00bcd4; color:#000; border:none; border-radius:4px;
                      padding:5px 14px; cursor:pointer; font-weight:bold">Save Credentials</button>
       <span style="font-size:12px; color:#888">
-        No account? <a href="https://rmnoise.com/account/registration/" target="_blank"
+        No account? <a href="https://rmnoise.com/users2/register" target="_blank"
                        style="color:#00bcd4">Register</a>
       </span>
     </div>
@@ -938,5 +943,53 @@ input[type=range]::-webkit-slider-thumb {
   </div>
 </div>
 <!-- ── HB9VQQ END: rmnoise modal ── -->
+
+<!-- ── HB9VQQ BEGIN: rmnoise drag ── -->
+<script>
+(function() {
+    function makeDraggable(panelId, handleId) {
+        var panel  = document.getElementById(panelId);
+        var handle = document.getElementById(handleId);
+        if (!panel || !handle) return;
+        var dragging = false, ox = 0, oy = 0;
+
+        handle.addEventListener('mousedown', function(e) {
+            if (e.button !== 0) return;
+            dragging = true;
+            var r = panel.getBoundingClientRect();
+            ox = e.clientX - r.left;
+            oy = e.clientY - r.top;
+            // Switch from right-anchored to left-anchored positioning
+            panel.style.right  = 'auto';
+            panel.style.left   = r.left + 'px';
+            panel.style.top    = r.top  + 'px';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!dragging) return;
+            var x = e.clientX - ox;
+            var y = e.clientY - oy;
+            // Clamp within viewport
+            x = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth,  x));
+            y = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, y));
+            panel.style.left = x + 'px';
+            panel.style.top  = y + 'px';
+        });
+
+        document.addEventListener('mouseup', function() { dragging = false; });
+    }
+
+    // Wire up after DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            makeDraggable('rmnoise-panel', 'rmnoise-titlebar');
+        });
+    } else {
+        makeDraggable('rmnoise-panel', 'rmnoise-titlebar');
+    }
+})();
+</script>
+<!-- ── HB9VQQ END: rmnoise drag ── -->
 </body>
 </html>

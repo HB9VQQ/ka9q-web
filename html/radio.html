@@ -991,5 +991,30 @@ input[type=range]::-webkit-slider-thumb {
 })();
 </script>
 <!-- ── HB9VQQ END: rmnoise drag ── -->
+
+<!-- ── HB9VQQ BEGIN: rmnoise mode hook ── -->
+<script>
+(function() {
+    function wireRMNoiseMode() {
+        var modeEl = document.getElementById('mode');
+        if (!modeEl) { setTimeout(wireRMNoiseMode, 500); return; }
+        modeEl.addEventListener('change', function() {
+            if (window.rmNoise_updateModeSupport) {
+                window.rmNoise_updateModeSupport(this.value);
+            }
+        });
+        // Apply to current mode on load
+        if (window.rmNoise_updateModeSupport) {
+            window.rmNoise_updateModeSupport(modeEl.value || 'usb');
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', wireRMNoiseMode);
+    } else {
+        wireRMNoiseMode();
+    }
+})();
+</script>
+<!-- ── HB9VQQ END: rmnoise mode hook ── -->
 </body>
 </html>

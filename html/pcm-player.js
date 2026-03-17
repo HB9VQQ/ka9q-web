@@ -179,6 +179,7 @@ PCMPlayer.prototype.flush = function() {
         var _rmDenoised = window.rmNoise_process(this.samples, this.option.sampleRate);
         if (_rmDenoised) {
             var _rmMix = window.rmNoiseBridge.mixRatio;
+            if (!window.rmNoiseBridge.bypass && _rmMix > 0) {
                 var _rmMixed = new Float32Array(this.samples.length);
                 for (var _rmi = 0; _rmi < this.samples.length; _rmi++) {
                     _rmMixed[_rmi] = (1 - _rmMix) * this.samples[_rmi] + _rmMix * (_rmDenoised[_rmi] || 0);

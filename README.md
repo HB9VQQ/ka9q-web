@@ -43,6 +43,14 @@
 * Audio recording, pan control, passband drag
 * **Filter edge save/restore** — low/high filter values persisted across reloads
 
+### Audio dynamics compressor (`pcm-player.js`)
+
+* **Improves SSB intelligibility** — automatically levels weak and strong signals so you stop reaching for the volume knob
+* Weak DX stations fading in and out become consistently audible
+* Strong nearby stations are pulled back without clipping
+* Toggle button in the Audio panel — state remembered across reloads
+* Works alongside RMNoise AI denoising — compresses the already-denoised audio for best results
+
 ### BCL/SWL broadcast listener features
 
 * **Broadcast band plan** — LW (216 kHz), MW (1000 kHz), 120M–11M (16 bands total)
@@ -198,3 +206,6 @@ ExecStart=/usr/local/bin/dx-cluster-bridge.py \
 ---
 
 ## Known issues / TODO
+
+* GitHub Actions CI not yet configured for this fork
+* BCL overlay: scheduled filtering uses EiBi data only — AOKI-only entries hidden when filter is active

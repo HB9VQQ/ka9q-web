@@ -8,13 +8,22 @@
 
 ## What's new in this fork
 
+### Beam direction compass (`compass.js`, `rotator-proxy.py`)
+
+* **Live rotator display** — floating draggable compass panel showing current beam heading in real time
+* Polls the PstRotatorAz web server every 5 seconds via a local proxy (`rotator-proxy.py`)
+* Canvas compass rose with N/E/S/W labels, beam needle, ±15° beam cone, and degree readout
+* Only shown for directional antennas (configurable in `station-config.js`); hidden for omni antennas
+* Opens automatically on page load; remembers open/closed state across reloads
+* Requires `rotator-proxy.service` running on the ka9q-web host server (see Deployment below)
+
 ### RMNoise AI Denoising (`rmnoise.js`, `ka9q-rmnoise-worklet.js`)
 
 * **AI-powered noise reduction** via [rmnoise.com](https://rmnoise.com) — requires a free rmnoise.com account
 * Integrated natively into the ka9q-web UI — no OS audio routing or browser extensions required
 * Floating draggable modal: credentials, AI filter model selector, mix slider (0–100%), bypass button, statistics, log
 * **Mix slider** — blend from 0% (original) to 100% (fully denoised) with no echo at any value
-* **AudioWorklet path** (HTTPS) — echo-free blend via frame-number keyed pairing and AI lookahead delay compensation (38.75 ms)
+* **AudioWorklet path** (HTTPS) — echo-free blend with no latency artifacts
 * **JS fallback path** (HTTP) — full blend functionality on plain HTTP connections
 * **Auto-bypass** — automatically bypasses when switching to AM/FM/NFM (unsupported modes); resumes on return to SSB/CW
 * **3 kHz send-path LPF** — removes SDR noise above voice band before AI processing, preventing aliasing artifacts
@@ -69,25 +78,13 @@
 * FT8/FT4 mode inference from frequency windows
 * Systemd service included
 
-### Spectrum fixes (`spectrum.js`)
-
-* dBm axis labels corrected
-* CSS pixel fix for click-to-tune on non-integer DPR displays
-* Firefox black waterfall fix (colormap guards + canvas clientHeight)
-
-### radio.js patches
-
-* `-n` argument underscores display as spaces in heading and tab title
-* NaN guards for increment/step on missing localStorage key
-* Band dropdown correctly repopulated on page reload
-* Filter edge save/restore across reloads
-
 ---
 
 ## Deployment
 
 ### Requirements
 
+* **[ka9q-web](https://github.com/scottnewell/ka9q-web)** — must be installed (this fork replaces the HTML/JS files)
 * **[ka9q-radio](https://github.com/ka9q/ka9q-radio)** — must be installed and running
 * Python 3.10+: `sudo apt install python3-websockets python3-aiohttp`
 * nginx + certbot for HTTPS (required for RMNoise AudioWorklet path)
@@ -98,6 +95,8 @@
 | --- | --- |
 | `html/radio.html` | `/usr/local/share/ka9q-web/html/` |
 | `html/radio.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/compass.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/station-config.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/rmnoise.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/ka9q-rmnoise-worklet.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/pcm-player.js` | `/usr/local/share/ka9q-web/html/` |
@@ -110,6 +109,8 @@
 | `dx-cluster-bridge.service` | `/etc/systemd/system/` |
 | `rmnoise-proxy.py` | `/usr/local/bin/` |
 | `rmnoise-proxy.service` | `/etc/systemd/system/` |
+| `rotator-proxy.py` | `/usr/local/bin/` |
+| `rotator-proxy.service` | `/etc/systemd/system/` |
 | `nginx/rx888.conf` | `/etc/nginx/sites-available/` |
 
 ### Deploying HTML files
@@ -117,6 +118,32 @@
 ```bash
 sudo cp html/* /usr/local/share/ka9q-web/html/
 sudo kill -HUP $(pgrep -f "ka9q-web")
+```
+
+### Compass / rotator proxy setup
+
+```bash
+sudo cp rotator-proxy.py /usr/local/bin/
+sudo cp rotator-proxy.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now rotator-proxy
+```
+
+Edit `station-config.js` to set your rotator URL and port types:
+
+```javascript
+ports: {
+    8081: { name: 'Your omni antenna', type: 'omni' },
+    8082: { name: 'Your beam antenna', type: 'directional',
+            rotatorUrl: 'http://192.168.1.x/PstRotatorAz.htm' }
+}
+```
+
+Then patch nginx to proxy the rotator API:
+
+```bash
+sudo python3 patch_nginx_rotator.py
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ### RMNoise setup (optional)
@@ -171,7 +198,3 @@ ExecStart=/usr/local/bin/dx-cluster-bridge.py \
 ---
 
 ## Known issues / TODO
-
-* GitHub Actions CI not yet configured for this fork
-* BCL overlay: scheduled filtering uses EiBi data only — AOKI-only entries hidden when filter is active
-

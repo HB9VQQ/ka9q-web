@@ -41,7 +41,7 @@ function setSolPill(label, value, cssClass) {
   }
 
   const dxCluster = new DXCluster(
-    (document.querySelector('.bridge-inp') || {value: ''}).value || 'wss://dxmap.hb9vqq.ch/dx-ws',
+    (document.querySelector('.bridge-inp') || {value: ''}).value || (window.STATION_CONFIG && STATION_CONFIG.dxClusterWs) || 'wss://dxmap.hb9vqq.ch/dx-ws',
     30
   );
   dxCanvas = document.getElementById('dx-overlay');
@@ -121,7 +121,7 @@ function setSolPill(label, value, cssClass) {
   const ageSelect  = document.querySelector('.dxg .sel:nth-of-type(1)');
   const modeSelect = document.querySelector('.dxg .sel:nth-of-type(2)');
   const bridgeInp = document.querySelector('.bridge-inp');
-  if (bridgeInp && !bridgeInp.value) bridgeInp.value = 'wss://dxmap.hb9vqq.ch/dx-ws';
+  if (bridgeInp && !bridgeInp.value) bridgeInp.value = (window.STATION_CONFIG && STATION_CONFIG.dxClusterWs) || 'wss://dxmap.hb9vqq.ch/dx-ws';
   const applyBtn   = document.querySelector('.bridge-inp + .icon-btn');
 
   if (ageSelect) ageSelect.addEventListener('change', () => {
@@ -263,7 +263,7 @@ const _savedRegion = localStorage.getItem("dx_region");
 // Fetches live solar data from DX Map API every 5 minutes.
 // setSolPill() is defined in the dx-cluster init block above.
 (function updateSolarPills() {
-  fetch('https://dxmap.hb9vqq.ch/data/eu_v4.json')
+  fetch((window.STATION_CONFIG && STATION_CONFIG.solarApiUrl) || 'https://dxmap.hb9vqq.ch/data/eu_v4.json')
     .then(r => r.json())
     .then(d => {
       const s = d.solar;

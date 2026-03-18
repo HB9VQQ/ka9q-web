@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HB9VQQ · WebSDR</title>
+<script src="station-config.js"></script>
 <script src="colormap.js"></script>
 <script src="spectrum.js"></script>
 <script src="pcm-player.js"></script>
@@ -815,7 +816,7 @@ input[type=range]::-webkit-slider-thumb {
     <button onclick="document.getElementById('help-modal').style.display='none'"
       style="position:absolute;top:8px;right:12px;background:none;border:none;
              color:#557755;font-size:16px;cursor:pointer;">✕</button>
-    <div style="font-size:11px;font-weight:600;letter-spacing:0.15em;color:#00d4c8;margin-bottom:14px;">HELP — HB9VQQ ka9q-web</div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:0.15em;color:#00d4c8;margin-bottom:14px;">HELP — <span id="sc-help-callsign">HB9VQQ</span> ka9q-web</div>
 
     <div style="color:#00d4c8;font-size:10px;letter-spacing:0.1em;margin:10px 0 6px;">MOUSE</div>
     <table style="width:100%;font-size:11px;border-collapse:collapse;">
@@ -853,7 +854,7 @@ input[type=range]::-webkit-slider-thumb {
       <tr><td style="color:#888888;padding:2px 8px 2px 0;">■ Grey</td><td style="color:#aaaaaa;">Other</td></tr>
     </table>
 
-    <div style="color:#557755;font-size:9px;margin-top:14px;">rx888.hb9vqq.ch — HB9VQQ — github.com/HB9VQQ/ka9q-web</div>
+    <div style="color:#557755;font-size:9px;margin-top:14px;"><span id="sc-help-footer">rx888.hb9vqq.ch — HB9VQQ — github.com/HB9VQQ/ka9q-web</span></div>
   </div>
 </div>
 <!-- ── HB9VQQ BEGIN: rmnoise modal ── -->
@@ -1016,5 +1017,18 @@ input[type=range]::-webkit-slider-thumb {
 })();
 </script>
 <!-- ── HB9VQQ END: rmnoise mode hook ── -->
+
+<!-- ── HB9VQQ BEGIN: station-config init ── -->
+<script>
+(function() {
+    if (!window.STATION_CONFIG) return;
+    var c = STATION_CONFIG;
+    var h = document.getElementById('sc-help-callsign');
+    if (h) h.textContent = c.callsign;
+    var f = document.getElementById('sc-help-footer');
+    if (f) f.textContent = c.siteUrl + ' — ' + c.callsign + ' — github.com/HB9VQQ/ka9q-web';
+})();
+</script>
+<!-- ── HB9VQQ END: station-config init ── -->
 </body>
 </html>

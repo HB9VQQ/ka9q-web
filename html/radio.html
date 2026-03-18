@@ -609,6 +609,10 @@ input[type=range]::-webkit-slider-thumb {
     <div class="cg-title">Audio</div>
     <div class="crow">
       <button class="cbtn go" id="audio_button" value="START" onclick="audio_start_stop()" style="min-width:110px;color:#c084fc;border:1px solid #c084fc">▶ Start Audio</button>
+      <!-- ── HB9VQQ BEGIN: rmnoise buttons ── -->
+      <button id="rmn-quick-toggle" class="cbtn" title="RMNoise AI Denoising Settings"
+              style="background:#6f42c1;padding:3px 8px">🤖 RMN</button>
+      <!-- ── HB9VQQ END: rmnoise buttons ── -->
     </div>
     <div class="crow">
       <span class="lbl">Vol</span>
@@ -627,10 +631,6 @@ input[type=range]::-webkit-slider-thumb {
       <button class="cbtn purple" id="OptionsButton" title="Additional options">⚙ Options</button>
       <button class="cbtn" onclick="document.getElementById('help-modal').style.display='flex'" title="Help" style="padding:3px 8px">? Help</button>
       <button class="cbtn" id="toggleRecording" onclick="toggleAudioRecording()" style="padding:3px 8px">⏺ Record</button>
-      <!-- ── HB9VQQ BEGIN: rmnoise buttons ── -->
-      <button id="rmn-quick-toggle" class="cbtn" title="RMNoise AI Denoising Settings"
-              style="background:#6f42c1;padding:3px 8px">🤖 RMN</button>
-      <!-- ── HB9VQQ END: rmnoise buttons ── -->
       <button class="cbtn" style="padding:3px 7px" title="Toggle fullscreen (or press F)"
               onclick="if(document.fullscreenElement)document.exitFullscreen();else document.getElementById('wf-wrap').requestFullscreen()">⛶</button>
     </div>
@@ -638,6 +638,10 @@ input[type=range]::-webkit-slider-thumb {
       <span class="lbl">Spec size</span>
       <button class="cbtn" id="spectrum_size_down" onclick="spectrum.decrementSpectrumPercent()" style="padding:2px 8px" title="Decrease spectrum height">−</button>
       <button class="cbtn" id="spectrum_size_up"   onclick="spectrum.incrementSpectrumPercent()" style="padding:2px 8px" title="Increase spectrum height">+</button>
+      <!-- ── HB9VQQ BEGIN: compass button ── -->
+      <button id="compass-btn" class="cbtn" title="Beam direction compass"
+              style="background:#2d5a27;padding:3px 8px">🧭 Beam</button>
+      <!-- ── HB9VQQ END: compass button ── -->
     </div>
   </div>
 
@@ -801,6 +805,7 @@ input[type=range]::-webkit-slider-thumb {
 <script src="hb9vqq-ui.js"></script>
 
 <script src="hb9vqq-init.js"></script>
+<script src="compass.js"></script>
 <!-- ── HB9VQQ BEGIN: rmnoise script ── -->
 <script src="rmnoise.js"></script>
 <!-- ── HB9VQQ END: rmnoise script ── -->

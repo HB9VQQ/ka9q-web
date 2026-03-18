@@ -1,0 +1,13 @@
+[Unit]
+Description=PstRotatorAz polling proxy for ka9q-web compass panel
+After=network.target
+
+[Service]
+Type=simple
+User=radio
+ExecStart=/usr/bin/python3 /usr/local/bin/rotator-proxy.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -3,8 +3,6 @@
  *
  * Edit this file to customise the fork for your station.
  * All other JS files read from this object — no other changes needed.
- *
- * port detection: window.location.port (or '80' if omitted)
  */
 
 const STATION_CONFIG = {
@@ -19,18 +17,15 @@ const STATION_CONFIG = {
     solarApiUrl: 'https://dxmap.hb9vqq.ch/data/eu_v4.json',
 
     // ── Per-port antenna configuration ───────────────────────────────────────
+    // WAN ports (nginx HTTPS) and LAN ports (direct HTTP) both listed.
     // type: 'omni'        — omnidirectional, no rotator
     // type: 'directional' — beam antenna with rotator
-    //   rotatorUrl: URL of PstRotatorAz web server (polled every 5s)
     ports: {
-        8081: {
-            name: 'N4CY Loop',
-            type: 'omni'
-        },
-        8082: {
-            name: 'Spiderbeam HD Yagi',
-            type: 'directional',
-            rotatorUrl: 'http://192.168.1.44/PstRotatorAz.htm'
-        }
+        8081: { name: 'N4CY Loop',          type: 'omni' },
+        9081: { name: 'N4CY Loop',          type: 'omni' },
+        8082: { name: 'Spiderbeam', type: 'directional',
+                rotatorUrl: 'http://192.168.1.44/PstRotatorAz.htm' },
+        9082: { name: 'Spiderbeam', type: 'directional',
+                rotatorUrl: 'http://192.168.1.44/PstRotatorAz.htm' }
     }
 };

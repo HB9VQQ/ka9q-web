@@ -641,15 +641,19 @@ input[type=range]::-webkit-slider-thumb {
     <div class="cg-title">Tools</div>
     <div class="crow">
       <button class="cbtn purple" id="OptionsButton" title="Additional options">⚙ Options</button>
-      <button class="cbtn" style="padding:3px 7px" title="Toggle fullscreen (or press F)"
-              onclick="if(document.fullscreenElement)document.exitFullscreen();else document.getElementById('wf-wrap').requestFullscreen()">⛶</button>
-    </div>
-    <div class="crow" style="gap:5px">
       <!-- ── HB9VQQ BEGIN: compass button ── -->
       <button id="compass-btn" class="cbtn" title="Beam direction compass"
               style="background:#2d5a27;padding:3px 8px">🧭 Beam</button>
       <!-- ── HB9VQQ END: compass button ── -->
+      <!-- ── HB9VQQ BEGIN: share button ── -->
+      <button id="share-btn" class="cbtn" title="Copy shareable link with current frequency, mode, center and zoom"
+              onclick="shareLink()" style="padding:3px 8px">🔗 Share</button>
+      <!-- ── HB9VQQ END: share button ── -->
+    </div>
+    <div class="crow" style="gap:5px">
       <button class="cbtn" onclick="document.getElementById('help-modal').style.display='flex'" title="Help" style="padding:3px 8px">? Help</button>
+      <button class="cbtn" style="padding:3px 7px" title="Toggle fullscreen (or press F)"
+              onclick="if(document.fullscreenElement)document.exitFullscreen();else document.getElementById('wf-wrap').requestFullscreen()">⛶</button>
     </div>
   </div>
 
@@ -1030,6 +1034,109 @@ input[type=range]::-webkit-slider-thumb {
 })();
 </script>
 <!-- ── HB9VQQ END: rmnoise mode hook ── -->
+
+<!-- ── HB9VQQ BEGIN: share link ── -->
+<script>
+function shareLink() {
+    // Read current state from spectrum and radio.js globals
+    var fEl = document.getElementById('freq');
+    var f = fEl ? Math.round(parseFloat(fEl.value) * 1000) : 0;
+    var m = (document.getElementById('mode') || {}).value || '';
+    var c = (typeof spectrum !== 'undefined' && spectrum.centerHz) ? Math.round(spectrum.centerHz) : 0;
+    var z = (document.getElementById('zoom_level') || {}).value || '0';
+
+    if (!f) {
+        var btn = document.getElementById('share-btn');
+        if (btn) { btn.textContent = '✗ No freq'; setTimeout(function(){ btn.innerHTML = '🔗 Share'; }, 1500); }
+        return;
+    }
+
+    // Build public URL from STATION_CONFIG so LAN users share a WAN-accessible link
+    var siteUrl = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.siteUrl)
+        ? STATION_CONFIG.siteUrl : window.location.hostname;
+    var port = parseInt(window.location.port) || 80;
+    var portCfg = (typeof STATION_CONFIG !== 'undefined' && STATION_CONFIG.ports)
+        ? STATION_CONFIG.ports[port] : null;
+    var wanPort = (portCfg && portCfg.wanPort) ? portCfg.wanPort : port;
+    var publicOrigin = 'https://' + siteUrl + ':' + wanPort;
+    var url = publicOrigin + window.location.pathname +
+              '?f=' + f + '&m=' + encodeURIComponent(m) +
+              '&c=' + c + '&z=' + z;
+
+    var btn = document.getElementById('share-btn');
+    function onCopied() {
+        if (btn) { btn.textContent = '✓ Copied!'; setTimeout(function(){ btn.innerHTML = '🔗 Share'; }, 1500); }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(onCopied).catch(function() {
+            window.prompt('Copy this link:', url);
+        });
+    } else {
+        // HTTP fallback — use execCommand
+        var ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); onCopied(); } catch(e) { window.prompt('Copy this link:', url); }
+        document.body.removeChild(ta);
+    }
+}
+
+// ── Restore from URL parameters ──
+(function() {
+    var params = new URLSearchParams(window.location.search);
+    var f = params.get('f');
+    var m = params.get('m');
+    var c = params.get('c');
+    var z = params.get('z');
+    if (!f) return;
+
+    // Apply after spectrum and WS are ready
+    var applied = false;
+    function applyShareParams() {
+        if (applied) return;
+        if (typeof spectrum === 'undefined' || !spectrum) return;
+        if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+        applied = true;
+
+        // Suppress server center/freq override for next 5 packets
+        window._restoreCenterPackets = 5;
+        window._restoreFreqHz = parseInt(f);
+
+        if (m) {
+            var modeEl = document.getElementById('mode');
+            if (modeEl) { modeEl.value = m; modeEl.dispatchEvent(new Event('change')); }
+        }
+        if (z) {
+            var zEl = document.getElementById('zoom_level');
+            if (zEl) { zEl.value = z; setZoom(); }
+        }
+        if (c) {
+            spectrum.setCenterHz(parseInt(c));
+            ws.send('Z:c:' + c);
+        }
+        if (f) {
+            var fKhz = (parseInt(f) / 1000).toFixed(3);
+            spectrum.setFrequency(parseInt(f));
+            ws.send('F:' + fKhz);
+            var fEl = document.getElementById('freq');
+            if (fEl) fEl.value = fKhz;
+        }
+    }
+
+    // Store params globally — picked up by radio.js after WS connects
+    window._shareParams = { f: f, m: m, c: c, z: z };
+    // Also try polling as fallback
+    var t = setInterval(function() {
+        applyShareParams();
+        if (applied) clearInterval(t);
+    }, 500);
+    setTimeout(function() { clearInterval(t); }, 20000);
+})();
+</script>
+<!-- ── HB9VQQ END: share link ── -->
 
 <!-- ── HB9VQQ BEGIN: compressor toggle ── -->
 <script>

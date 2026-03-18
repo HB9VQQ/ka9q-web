@@ -126,8 +126,16 @@
         ws.send("F:" + (target_frequency / 1000.0).toFixed(3));
         fetchZoomTableSize(); // Fetch and store the zoom table size
         // Initialize filter edge inputs based on the target preset
+        // ── HB9VQQ: skip if user has saved custom filter edges ──
         try {
-          setFilterEdgesForMode(target_preset);
+          if (localStorage.getItem('filter_low') === null) {
+            setFilterEdgesForMode(target_preset);
+          } else {
+            const _fLowEl  = document.getElementById('filterLowInput');
+            const _fHighEl = document.getElementById('filterHighInput');
+            if (_fLowEl)  _fLowEl.value  = localStorage.getItem('filter_low');
+            if (_fHighEl) _fHighEl.value = localStorage.getItem('filter_high');
+          }
         } catch (e) {}
   // Attach listeners so spinner/caret presses auto-send
   try { attachEdgeInputListeners(); } catch (e) {}
@@ -173,6 +181,7 @@
             // Clear manual-dirty flag and update Edge button state when edges are sent
             edgeManualDirty = false;
             updateEdgeButtonState();
+            saveSettings();  // ── HB9VQQ: persist filter edges ──
           } catch (e) {
             console.error('Failed to send filter edges:', e);
           }
@@ -1519,6 +1528,14 @@ function saveSettings() {
   localStorage.setItem("preset", document.getElementById("mode").value);
   localStorage.setItem("step", document.getElementById("step").value.toString());
   const bandEl = document.getElementById("band"); if (bandEl) localStorage.setItem("band", bandEl.value);
+  // ── HB9VQQ BEGIN: save filter edges ──
+  const _fLow = document.getElementById('filterLowInput');
+  const _fHigh = document.getElementById('filterHighInput');
+  if (_fLow && _fHigh) {
+    localStorage.setItem('filter_low', _fLow.value);
+    localStorage.setItem('filter_high', _fHigh.value);
+  }
+  // ── HB9VQQ END: save filter edges ──
   const bandCatEl = document.getElementById("band_category"); if (bandCatEl) localStorage.setItem("band_category", bandCatEl.value);
   const regionEl = document.getElementById("dx-region-sel"); if (regionEl) localStorage.setItem("dx_region", regionEl.value);
   const dxModeEl = document.getElementById("dx-mode-sel"); if (dxModeEl) localStorage.setItem("dx_mode", dxModeEl.value);
@@ -1654,6 +1671,16 @@ function loadSettings() {
   const savedRegion = localStorage.getItem("dx_region"); if (savedRegion) { const r = document.getElementById("dx-region-sel"); if (r) r.value = savedRegion; }
   const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }
   target_preset = localStorage.getItem("preset");
+  // ── HB9VQQ BEGIN: restore filter edges ──
+  const _rLow  = localStorage.getItem('filter_low');
+  const _rHigh = localStorage.getItem('filter_high');
+  if (_rLow !== null && _rHigh !== null) {
+    const _fLowEl  = document.getElementById('filterLowInput');
+    const _fHighEl = document.getElementById('filterHighInput');
+    if (_fLowEl)  _fLowEl.value  = _rLow;
+    if (_fHighEl) _fHighEl.value = _rHigh;
+  }
+  // ── HB9VQQ END: restore filter edges ──
   increment = parseFloat(localStorage.getItem("step")) || 1000; // HB9VQQ: guard NaN when step not saved
   const c = parseInt(localStorage.getItem("colorIndex")) || 9;
   document.getElementById("colormap").value = c;

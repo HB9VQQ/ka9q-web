@@ -46,36 +46,77 @@ PCMPlayer.prototype.createContext = function() {
 
     // context needs to be resumed on iOS and Safari (or it will stay in "suspended" state)
     this.audioCtx.resume();
-    //this.audioCtx.onstatechange = () => console.log(this.audioCtx.state);   // if you want to see "Running" state in console and be happy about it
 
     this.gainNode = this.audioCtx.createGain();
     this.gainNode.gain.value = 1;
 
     // [HB9VQQ] Phase 4b: expose AudioContext + gainNode globally so rmnoise.js can
-    // load the AudioWorklet.  radio.js keeps player as a local var so window.player
-    // is not available — these globals are the bridge instead.
+    // load the AudioWorklet.
     window.rmNoiseAudioCtx = this.audioCtx;
     window.rmNoiseGainNode = this.gainNode;
+    window._pcmPlayer = this;  // [HB9VQQ] exposed for toggleCompressor()
+    window._pcmPlayer = this;  // [HB9VQQ] expose for toggleCompressor()
 
     // [HB9VQQ] Phase 4b: if RMNoise is already enabled (reconnect after mode change),
     // initialise or reconnect the worklet to the new context/gainNode now.
     if (window.rmNoiseBridge && window.rmNoise_ensureWorklet) {
         if (window.rmNoiseBridge.workletNode) {
-            // Mode change: context rebuilt — reconnect existing worklet node
             try { window.rmNoiseBridge.workletNode.connect(this.gainNode); } catch (_wce) {}
         } else if (window.rmNoiseBridge.enabled) {
-            // Worklet not yet loaded but RMNoise active — load it now
             window.rmNoise_ensureWorklet(this.audioCtx);
         }
     }
 
-    // [HB9VQQ] StereoPannerNode: gainNode → _pannerNode → destination
+    // [HB9VQQ] StereoPannerNode: gainNode → _pannerNode → compressorNode → destination
     this._pannerNode = this.audioCtx.createStereoPanner();
     this._pannerNode.pan.value = 0;
+
+    // [HB9VQQ] DynamicsCompressorNode — off by default, inserted after panner
+    this._compressorNode = this.audioCtx.createDynamicsCompressor();
+    this._compressorNode.threshold.value = -24;
+    this._compressorNode.knee.value      = 10;
+    this._compressorNode.ratio.value     = 4;
+    this._compressorNode.attack.value    = 0.005;
+    this._compressorNode.release.value   = 0.25;
+    this._compressorEnabled = false;
+
+    // Default chain: gainNode → panner → destination (compressor bypassed)
     this.gainNode.connect(this._pannerNode);
     this._pannerNode.connect(this.audioCtx.destination);
 
+    // Restore compressor state from localStorage
+    if (localStorage.getItem('compressorEnabled') === '1') {
+        this._enableCompressor();
+    }
+
     this.startTime = this.audioCtx.currentTime;
+};
+
+// [HB9VQQ] Enable compressor: gainNode → panner → compressor → destination
+PCMPlayer.prototype._enableCompressor = function() {
+    try { this._pannerNode.disconnect(this.audioCtx.destination); } catch(e) {}
+    try { this._pannerNode.connect(this._compressorNode); } catch(e) {}
+    try { this._compressorNode.connect(this.audioCtx.destination); } catch(e) {}
+    this._compressorEnabled = true;
+};
+
+// [HB9VQQ] Disable compressor: gainNode → panner → destination
+PCMPlayer.prototype._disableCompressor = function() {
+    try { this._pannerNode.disconnect(this._compressorNode); } catch(e) {}
+    try { this._compressorNode.disconnect(this.audioCtx.destination); } catch(e) {}
+    try { this._pannerNode.connect(this.audioCtx.destination); } catch(e) {}
+    this._compressorEnabled = false;
+};
+
+// [HB9VQQ] Toggle compressor on/off
+PCMPlayer.prototype.setCompressor = function(enabled) {
+    if (this._destroyed) return;
+    if (enabled) {
+        this._enableCompressor();
+    } else {
+        this._disableCompressor();
+    }
+    localStorage.setItem('compressorEnabled', enabled ? '1' : '0');
 };
 
 PCMPlayer.prototype.resume = function() {
@@ -121,12 +162,9 @@ PCMPlayer.prototype.pan = function(value) {
 };
 
 // [HB9VQQ] Start recording post-gain/post-pan audio to a WebM file.
-// Taps MediaStreamDestination from _pannerNode so recording reflects
-// both volume and pan settings. On stopRecording() the file is
-// auto-downloaded as ka9q-recording-<ISO timestamp>.webm.
 PCMPlayer.prototype.startRecording = function() {
-    if (this._mediaRecorder) return;           // already recording — no-op
-    if (!this._pannerNode) return;             // context not ready
+    if (this._mediaRecorder) return;
+    if (!this._pannerNode) return;
 
     var dest = this.audioCtx.createMediaStreamDestination();
     this._pannerNode.connect(dest);
@@ -143,7 +181,6 @@ PCMPlayer.prototype.startRecording = function() {
     };
 
     this._mediaRecorder.onstop = function() {
-        // disconnect recording tap before touching chunks
         if (self._recordingDest) {
             try { self._pannerNode.disconnect(self._recordingDest); } catch (ignore) {}
         }
@@ -169,14 +206,15 @@ PCMPlayer.prototype.startRecording = function() {
 // [HB9VQQ] Stop an active recording and trigger download.
 PCMPlayer.prototype.stopRecording = function() {
     if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
-        this._mediaRecorder.stop();   // onstop fires asynchronously → handles download + cleanup
+        this._mediaRecorder.stop();
     }
 };
 
 PCMPlayer.prototype.destroy = function() {
-    this._destroyed = true;            // [HB9VQQ] tell flush() to bail before touching closed ctx
+    this._destroyed = true;
+    if (window._pcmPlayer === this) window._pcmPlayer = null;
+    if (window._pcmPlayer === this) window._pcmPlayer = null;  // [HB9VQQ] clear stale ref
 
-    // Stop any active recording cleanly before closing the audio context
     if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
         try { this._mediaRecorder.stop(); } catch (ignore) {}
     }
@@ -196,11 +234,9 @@ PCMPlayer.prototype.flush = function() {
     if (window.rmNoiseBridge && window.rmNoiseBridge.enabled && this.option.channels === 1
             && !window.rmNoiseBridge.bypass) {
         if (window.rmNoiseBridge.workletNode) {
-            // Worklet active: it owns the audio output. pcm-player plays silence.
             window.rmNoise_process(this.samples, this.option.sampleRate);
             this.samples = new Float32Array(this.samples.length);
         } else {
-            // No worklet (HTTP): JS blend path.
             var _rmResult = window.rmNoise_process(this.samples, this.option.sampleRate);
             if (_rmResult !== null) {
                 this.samples = _rmResult;
@@ -208,7 +244,7 @@ PCMPlayer.prototype.flush = function() {
         }
     }
     // ── HB9VQQ END: rmnoise hook ──
-    if (!this.samples.length) return;   // guard: hook may have zeroed samples
+    if (!this.samples.length) return;
     var bufferSource = this.audioCtx.createBufferSource(),
         length = this.samples.length / this.option.channels,
         audioBuffer = this.audioCtx.createBuffer(this.option.channels, length, this.option.sampleRate),
@@ -224,15 +260,6 @@ PCMPlayer.prototype.flush = function() {
         decrement = 50;
         for (i = 0; i < length; i++) {
             audioData[i] = this.samples[offset];
-            /* fadein */
-// just make this a simple copy to eliminate thumping - KA9Q 7 March 2024
-//            if (i < 50) {
-//                audioData[i] =  (audioData[i] * i) / 50;
-//            }
-            /* fadeout*/
-//            if (i >= (length - 51)) {
-//                audioData[i] =  (audioData[i] * decrement--) / 50;
-//            }
             offset += this.option.channels;
         }
     }
@@ -240,11 +267,9 @@ PCMPlayer.prototype.flush = function() {
     if (this.startTime < this.audioCtx.currentTime) {
         this.startTime = this.audioCtx.currentTime;
     }
-    //console.log('start vs current '+this.startTime+' vs '+this.audioCtx.currentTime+' duration: '+audioBuffer.duration);
     bufferSource.buffer = audioBuffer;
     bufferSource.connect(this.gainNode);
     bufferSource.start(this.startTime);
     this.startTime += audioBuffer.duration;
     this.samples = new Float32Array();
 };
-

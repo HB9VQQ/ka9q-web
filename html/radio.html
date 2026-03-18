@@ -623,6 +623,12 @@ input[type=range]::-webkit-slider-thumb {
              style="width:50px;margin-right:0"
              oninput="setPanner(this.value)" title="Audio pan L/R">
     </div>
+    <div class="crow">
+      <!-- ── HB9VQQ BEGIN: compressor button ── -->
+      <button id="compress-btn" class="cbtn" title="Dynamic range compression — levels weak and strong signals"
+              onclick="toggleCompressor()" style="padding:3px 8px">&#128266; Compress</button>
+      <!-- ── HB9VQQ END: compressor button ── -->
+    </div>
   </div>
 
   <div class="cg">
@@ -1022,6 +1028,36 @@ input[type=range]::-webkit-slider-thumb {
 })();
 </script>
 <!-- ── HB9VQQ END: rmnoise mode hook ── -->
+
+<!-- ── HB9VQQ BEGIN: compressor toggle ── -->
+<script>
+function toggleCompressor() {
+    // player is a local var in radio.js — access via exposed audio nodes
+    if (!window.rmNoiseAudioCtx) return;
+    // Find player via PCMPlayer instances on gainNode
+    var p = window._pcmPlayer;
+    if (!p) return;
+    var enabled = !p._compressorEnabled;
+    p.setCompressor(enabled);
+    var btn = document.getElementById('compress-btn');
+    if (btn) {
+        btn.style.background = enabled ? '#2d5a27' : '';
+        btn.style.color = enabled ? '#7fff6e' : '';
+        btn.title = enabled ? 'Compression ON — click to disable' : 'Dynamic range compression — levels weak and strong signals';
+    }
+}
+window.addEventListener('load', function() {
+    if (localStorage.getItem('compressorEnabled') === '1') {
+        var btn = document.getElementById('compress-btn');
+        if (btn) {
+            btn.style.background = '#2d5a27';
+            btn.style.color = '#7fff6e';
+            btn.title = 'Compression ON — click to disable';
+        }
+    }
+});
+</script>
+<!-- ── HB9VQQ END: compressor toggle ── -->
 
 <!-- ── HB9VQQ BEGIN: station-config init ── -->
 <script>

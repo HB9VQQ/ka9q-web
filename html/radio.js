@@ -733,13 +733,10 @@
         // ── HB9VQQ BEGIN: sync band selector when frequency typed manually ──
         syncBandSelector(f);
         // ── HB9VQQ END: sync band selector ──
-        // ── HB9VQQ BEGIN: re-center spectrum view on large frequency jumps ──
-        // Tell the spectrum JS object about the new center immediately so the
-        // display aligns before the first server packet arrives.
-        var _freqDiff = spectrum.frequency !== null ? frequencyDifference : Infinity;
-        if (_freqDiff > 3000000) {
-            spectrum.setCenterHz(f);
-        }
+        // ── HB9VQQ BEGIN: re-center spectrum view on frequency change ──
+        // Always update the JS center so the display aligns before the first
+        // server packet arrives — regardless of how far the frequency moved.
+        spectrum.setCenterHz(f);
         // ── HB9VQQ END: re-center spectrum view ──
         autoAutoscale(asCount,waitToAutoscale);      
         saveSettings();

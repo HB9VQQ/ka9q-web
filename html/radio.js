@@ -743,7 +743,7 @@
     }
 
     // ── HB9VQQ BEGIN: syncBandSelector — update band selector when freq typed manually ──
-    // Band edge ranges for amateur bands (Hz). Closest band wins.
+    // Band edge ranges (Hz). Used to auto-select band and category on manual freq entry.
     const _bandRanges = {
         amateur: [
             { label: "160M", lo:  1800000, hi:  2000000 },
@@ -755,29 +755,66 @@
             { label: "17M",  lo: 18068000, hi: 18168000 },
             { label: "15M",  lo: 21000000, hi: 21450000 },
             { label: "12M",  lo: 24890000, hi: 24990000 },
-            { label: "10M",  lo: 28000000, hi: 29700000 }
+            { label: "10M",  lo: 28000000, hi: 29700000 },
+            { label: "6M",   lo: 50000000, hi: 54000000 }
+        ],
+        broadcast: [
+            { label: "LW",   lo:   148500, hi:   283500 },
+            { label: "MW",   lo:   525000, hi:  1705000 },
+            { label: "120M", lo:  2300000, hi:  2495000 },
+            { label: "90M",  lo:  3200000, hi:  3400000 },
+            { label: "75M",  lo:  3900000, hi:  4000000 },
+            { label: "60M",  lo:  4750000, hi:  5060000 },
+            { label: "49M",  lo:  5900000, hi:  6200000 },
+            { label: "41M",  lo:  7200000, hi:  7450000 },
+            { label: "31M",  lo:  9400000, hi:  9900000 },
+            { label: "25M",  lo: 11600000, hi: 12100000 },
+            { label: "22M",  lo: 13570000, hi: 13870000 },
+            { label: "19M",  lo: 15100000, hi: 15800000 },
+            { label: "16M",  lo: 17480000, hi: 17900000 },
+            { label: "15M",  lo: 18900000, hi: 19020000 },
+            { label: "13M",  lo: 21450000, hi: 21850000 },
+            { label: "11M",  lo: 25600000, hi: 26100000 }
         ]
     };
     function syncBandSelector(freqHz) {
         const bandEl = document.getElementById('band');
         const catEl  = document.getElementById('band_category');
         if (!bandEl || !catEl) return;
-        const cat = catEl.value || 'amateur';
-        const ranges = _bandRanges[cat];
-        if (!ranges) return;
-        for (const b of ranges) {
-            if (freqHz >= b.lo && freqHz <= b.hi) {
-                // Option values are the representative frequency (e.g. 14185000 for 20M).
-                // Find the option whose label matches and set by its value.
-                for (const opt of bandEl.options) {
-                    if (opt.textContent === b.label) {
-                        bandEl.value = opt.value;
-                        return;
+
+        // Check amateur bands first, then broadcast
+        const categories = ['amateur', 'broadcast'];
+        for (const trycat of categories) {
+            const ranges = _bandRanges[trycat];
+            if (!ranges) continue;
+            for (const b of ranges) {
+                if (freqHz >= b.lo && freqHz <= b.hi) {
+                    // Switch category if needed and repopulate band dropdown
+                    if (catEl.value !== trycat) {
+                        catEl.value = trycat;
+                        catEl.dispatchEvent(new Event('change'));
                     }
+                    // Set correct mode unconditionally (bypass switchModesByFrequency guard)
+                    if (trycat === 'broadcast') {
+                        setMode('am');
+                    } else {
+                        // Amateur: LSB below 10 MHz, USB at/above 10 MHz
+                        setMode(freqHz < 10000000 ? 'lsb' : 'usb');
+                    }
+                    // Find option by label and select it
+                    setTimeout(function() {
+                        for (const opt of bandEl.options) {
+                            if (opt.textContent === b.label) {
+                                bandEl.value = opt.value;
+                                return;
+                            }
+                        }
+                    }, 50); // small delay to allow dropdown repopulation
+                    return;
                 }
             }
         }
-        // Frequency outside all known band ranges — leave selector unchanged
+        // Frequency outside all known ranges — leave selector unchanged
     }
     // ── HB9VQQ END: syncBandSelector ──
 
@@ -1739,7 +1776,8 @@ const bandOptions = {
         { label: "17M", freq: 18111000 },
         { label: "15M", freq: 21300000 },
         { label: "12M", freq: 24931000 },
-        { label: "10M", freq: 28500000 }
+        { label: "10M", freq: 28500000 },
+        { label: "6M",  freq: 52000000 }
     ],
     broadcast: [
         { label: "LW",   freq:  216000 },

@@ -882,12 +882,12 @@
           highEl.value = 200;
           break;
         case 'usb':
-          lowEl.value = 50;
-          highEl.value = 3000;
+          lowEl.value = 100;
+          highEl.value = 2900;
           break;
         case 'lsb':
-          lowEl.value = -3000;
-          highEl.value = -50;
+          lowEl.value = -2900;
+          highEl.value = -100;
           break;
         case 'am':
         case 'sam':

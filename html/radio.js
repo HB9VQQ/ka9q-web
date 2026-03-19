@@ -734,19 +734,11 @@
         syncBandSelector(f);
         // ── HB9VQQ END: sync band selector ──
         // ── HB9VQQ BEGIN: re-center spectrum view on large frequency jumps ──
-        // On cold start (spectrum.frequency === null, stream not yet active),
-        // the server ignores the first F: command for centering purposes.
-        // Sending F: a second time after a short delay activates the stream
-        // and centers the view correctly. This mirrors what two Enter presses do.
+        // Tell the spectrum JS object about the new center immediately so the
+        // display aligns before the first server packet arrives.
         var _freqDiff = spectrum.frequency !== null ? frequencyDifference : Infinity;
         if (_freqDiff > 3000000) {
-            var _fKhz = (f / 1000.0).toFixed(3);
             spectrum.setCenterHz(f);
-            setTimeout(function() {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send("F:" + _fKhz);
-                }
-            }, 150);
         }
         // ── HB9VQQ END: re-center spectrum view ──
         autoAutoscale(asCount,waitToAutoscale);      

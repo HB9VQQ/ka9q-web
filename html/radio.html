@@ -448,7 +448,7 @@ input[type=range]::-webkit-slider-thumb {
 
   <div class="freq-block">
     <span class="vfo-lbl">VFO·A</span>
-    <input id="freq" type="text" value="" title="Frequency kHz — Enter to tune" onkeydown="if(event.key==='Enter'){setFrequencyW();}">
+    <input id="freq" type="text" value="" title="Frequency kHz — Enter to tune" onkeydown="if(event.key==='Enter'){setFrequencyW();}" onclick="this.select()">
     <span class="freq-unit">kHz</span>
   </div>
 

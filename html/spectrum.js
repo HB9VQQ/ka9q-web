@@ -209,6 +209,8 @@ function Spectrum(id, options) {
             leftStartX = e.offsetX;
             leftStartTime = Date.now();
             leftStartCenterHz = spectrum.centerHz;
+            // HB9VQQ: cancel frequency restore so first click tunes correctly
+            if (window._restoreCenterPackets > 0) { window._restoreCenterPackets = 0; window._restoreFreqHz = null; }
         } else if (e.button === 2) { // Right mouse button: start drag to move tuned frequency
             isDragging = true;
             dragStarted = false;
@@ -323,8 +325,11 @@ function Spectrum(id, options) {
             const mouseX = (typeof e.offsetX === 'number') ? e.offsetX : (e.clientX - rect.left);
             const dragDistance = Math.abs(mouseX - leftStartX);
             if (!leftDragStarted && dragDuration < 250 && dragDistance < dragThreshold) {
-                const hzPerPixel = spectrum.spanHz / spectrum.canvas.width;
-                let clickedHz = spectrum.centerHz - ((spectrum.canvas.width / 2 - leftStartX) * hzPerPixel);
+                // HB9VQQ: use CSS pixels (rect.width) not buffer pixels (canvas.width) for correct freq at non-integer DPR
+                const rect2 = spectrum.canvas.getBoundingClientRect();
+                const cssWidth = rect2.width;
+                const hzPerPixel = spectrum.spanHz / cssWidth;
+                let clickedHz = spectrum.centerHz - ((cssWidth / 2 - leftStartX) * hzPerPixel);
                 let freq_khz = clickedHz / 1000;
                 let step = increment / 1000;
                 let snapped_khz = Math.round(freq_khz / step) * step;

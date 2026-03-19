@@ -448,7 +448,7 @@ input[type=range]::-webkit-slider-thumb {
 
   <div class="freq-block">
     <span class="vfo-lbl">VFO·A</span>
-    <input id="freq" type="text" value="" title="Frequency kHz — Enter to tune" onkeydown="if(event.key==='Enter'){setFrequencyW();}" onclick="this.select()">
+    <input id="freq" type="text" value="" title="Frequency kHz — Enter to tune" onkeydown="if(event.key==='Enter'){var f=parseFloat(this.value)*1000;if(!isNaN(f)){spectrum.setFrequency(f);ws.send('F:'+this.value);}}">
     <span class="freq-unit">kHz</span>
   </div>
 
@@ -653,7 +653,7 @@ input[type=range]::-webkit-slider-thumb {
     <div class="crow" style="gap:5px">
       <button class="cbtn" onclick="document.getElementById('help-modal').style.display='flex'" title="Help" style="padding:3px 8px">? Help</button>
       <button class="cbtn" style="padding:3px 7px" title="Toggle fullscreen (or press F)"
-              onclick="if(document.fullscreenElement)document.exitFullscreen();else document.getElementById('wf-wrap').requestFullscreen()">⛶</button>
+              onclick="togglePageFullscreen()">⛶</button>
     </div>
   </div>
 
@@ -1037,6 +1037,18 @@ input[type=range]::-webkit-slider-thumb {
 
 <!-- ── HB9VQQ BEGIN: share link ── -->
 <script>
+// ── HB9VQQ BEGIN: togglePageFullscreen — whole-page fullscreen for Chrome ──
+function togglePageFullscreen() {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        document.documentElement.requestFullscreen().catch(function(e) {
+            console.warn('Fullscreen failed:', e);
+        });
+    }
+}
+// ── HB9VQQ END: togglePageFullscreen ──
+
 function shareLink() {
     // Read current state from spectrum and radio.js globals
     var fEl = document.getElementById('freq');

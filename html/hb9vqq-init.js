@@ -316,12 +316,10 @@ document.addEventListener("DOMContentLoaded", function() {
       return;
     }
     spectrum.toggleFullscreen = function() {
-      const wfw = document.getElementById('wf-wrap');
-      if (!wfw) return;
       if (document.fullscreenElement) {
         document.exitFullscreen();
       } else {
-        wfw.requestFullscreen().catch(function(e) {
+        document.documentElement.requestFullscreen().catch(function(e) {
           console.warn('Fullscreen failed:', e);
         });
       }

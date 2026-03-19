@@ -126,16 +126,8 @@
         ws.send("F:" + (target_frequency / 1000.0).toFixed(3));
         fetchZoomTableSize(); // Fetch and store the zoom table size
         // Initialize filter edge inputs based on the target preset
-        // ── HB9VQQ: skip if user has saved custom filter edges ──
         try {
-          if (localStorage.getItem('filter_low') === null) {
-            setFilterEdgesForMode(target_preset);
-          } else {
-            const _fLowEl  = document.getElementById('filterLowInput');
-            const _fHighEl = document.getElementById('filterHighInput');
-            if (_fLowEl)  _fLowEl.value  = localStorage.getItem('filter_low');
-            if (_fHighEl) _fHighEl.value = localStorage.getItem('filter_high');
-          }
+          setFilterEdgesForMode(target_preset);
         } catch (e) {}
   // Attach listeners so spinner/caret presses auto-send
   try { attachEdgeInputListeners(); } catch (e) {}
@@ -181,7 +173,6 @@
             // Clear manual-dirty flag and update Edge button state when edges are sent
             edgeManualDirty = false;
             updateEdgeButtonState();
-            saveSettings();  // ── HB9VQQ: persist filter edges ──
           } catch (e) {
             console.error('Failed to send filter edges:', e);
           }
@@ -739,9 +730,67 @@
         spectrum.setFrequency(f);
         spectrum.checkFrequencyAndClearOverlays(f);
         setModeBasedOnFrequencyIfAllowed(f);
+        // ── HB9VQQ BEGIN: sync band selector when frequency typed manually ──
+        syncBandSelector(f);
+        // ── HB9VQQ END: sync band selector ──
+        // ── HB9VQQ BEGIN: re-center spectrum view on large frequency jumps ──
+        // On cold start (spectrum.frequency === null, stream not yet active),
+        // the server ignores the first F: command for centering purposes.
+        // Sending F: a second time after a short delay activates the stream
+        // and centers the view correctly. This mirrors what two Enter presses do.
+        var _freqDiff = spectrum.frequency !== null ? frequencyDifference : Infinity;
+        if (_freqDiff > 3000000) {
+            var _fKhz = (f / 1000.0).toFixed(3);
+            spectrum.setCenterHz(f);
+            setTimeout(function() {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send("F:" + _fKhz);
+                }
+            }, 150);
+        }
+        // ── HB9VQQ END: re-center spectrum view ──
         autoAutoscale(asCount,waitToAutoscale);      
         saveSettings();
     }
+
+    // ── HB9VQQ BEGIN: syncBandSelector — update band selector when freq typed manually ──
+    // Band edge ranges for amateur bands (Hz). Closest band wins.
+    const _bandRanges = {
+        amateur: [
+            { label: "160M", lo:  1800000, hi:  2000000 },
+            { label: "80M",  lo:  3500000, hi:  4000000 },
+            { label: "60M",  lo:  5060000, hi:  5450000 },
+            { label: "40M",  lo:  7000000, hi:  7300000 },
+            { label: "30M",  lo: 10100000, hi: 10150000 },
+            { label: "20M",  lo: 14000000, hi: 14350000 },
+            { label: "17M",  lo: 18068000, hi: 18168000 },
+            { label: "15M",  lo: 21000000, hi: 21450000 },
+            { label: "12M",  lo: 24890000, hi: 24990000 },
+            { label: "10M",  lo: 28000000, hi: 29700000 }
+        ]
+    };
+    function syncBandSelector(freqHz) {
+        const bandEl = document.getElementById('band');
+        const catEl  = document.getElementById('band_category');
+        if (!bandEl || !catEl) return;
+        const cat = catEl.value || 'amateur';
+        const ranges = _bandRanges[cat];
+        if (!ranges) return;
+        for (const b of ranges) {
+            if (freqHz >= b.lo && freqHz <= b.hi) {
+                // Option values are the representative frequency (e.g. 14185000 for 20M).
+                // Find the option whose label matches and set by its value.
+                for (const opt of bandEl.options) {
+                    if (opt.textContent === b.label) {
+                        bandEl.value = opt.value;
+                        return;
+                    }
+                }
+            }
+        }
+        // Frequency outside all known band ranges — leave selector unchanged
+    }
+    // ── HB9VQQ END: syncBandSelector ──
 
     function setBand(freq) {
         //console.log("setBand() called with freq=",freq);
@@ -801,29 +850,6 @@
       }
   
       // Reinitialize the PCMPlayer with the new configuration
-      // ── HB9VQQ BEGIN: rmnoise mode hook ──
-      (function() {
-          var supported = ['usb','lsb','cwu','cwl'].indexOf((selected_mode||'').toLowerCase()) >= 0;
-          if (!supported && window.rmNoiseBridge && rmNoiseBridge.enabled && !rmNoiseBridge.bypass) {
-              rmNoiseBridge.bypass = true;
-              // Post bypass to worklet
-              if (rmNoiseBridge.workletNode) {
-                  rmNoiseBridge.workletNode.port.postMessage({ type: 'bypass', value: true });
-              }
-              // Update toolbar button
-              var b = document.getElementById('rmn-quick-toggle');
-              var c = document.getElementById('rmn-cog-btn');
-              if (b) { b.disabled = false; b.style.opacity = '0.6'; b.style.backgroundColor = '#888'; }
-              if (c) { c.disabled = false; c.style.opacity = '0.6'; c.style.backgroundColor = '#888'; }
-              // Update modal bypass button
-              var m = document.getElementById('rmn-bypass-modal-btn');
-              if (m) { m.style.background = '#888'; m.textContent = '⏭ BYPASSED'; }
-          }
-      })();
-      if (window.rmNoise_updateModeSupport) {
-          window.rmNoise_updateModeSupport(selected_mode);
-      }
-      // ── HB9VQQ END: rmnoise mode hook ──
       player.destroy(); // Destroy the existing player instance
       player = new PCMPlayer({
           encoding: '16bitInt',
@@ -1528,14 +1554,6 @@ function saveSettings() {
   localStorage.setItem("preset", document.getElementById("mode").value);
   localStorage.setItem("step", document.getElementById("step").value.toString());
   const bandEl = document.getElementById("band"); if (bandEl) localStorage.setItem("band", bandEl.value);
-  // ── HB9VQQ BEGIN: save filter edges ──
-  const _fLow = document.getElementById('filterLowInput');
-  const _fHigh = document.getElementById('filterHighInput');
-  if (_fLow && _fHigh) {
-    localStorage.setItem('filter_low', _fLow.value);
-    localStorage.setItem('filter_high', _fHigh.value);
-  }
-  // ── HB9VQQ END: save filter edges ──
   const bandCatEl = document.getElementById("band_category"); if (bandCatEl) localStorage.setItem("band_category", bandCatEl.value);
   const regionEl = document.getElementById("dx-region-sel"); if (regionEl) localStorage.setItem("dx_region", regionEl.value);
   const dxModeEl = document.getElementById("dx-mode-sel"); if (dxModeEl) localStorage.setItem("dx_mode", dxModeEl.value);
@@ -1671,16 +1689,6 @@ function loadSettings() {
   const savedRegion = localStorage.getItem("dx_region"); if (savedRegion) { const r = document.getElementById("dx-region-sel"); if (r) r.value = savedRegion; }
   const savedDxMode = localStorage.getItem("dx_mode"); if (savedDxMode) { const dm = document.getElementById("dx-mode-sel"); if (dm) dm.value = savedDxMode; }
   target_preset = localStorage.getItem("preset");
-  // ── HB9VQQ BEGIN: restore filter edges ──
-  const _rLow  = localStorage.getItem('filter_low');
-  const _rHigh = localStorage.getItem('filter_high');
-  if (_rLow !== null && _rHigh !== null) {
-    const _fLowEl  = document.getElementById('filterLowInput');
-    const _fHighEl = document.getElementById('filterHighInput');
-    if (_fLowEl)  _fLowEl.value  = _rLow;
-    if (_fHighEl) _fHighEl.value = _rHigh;
-  }
-  // ── HB9VQQ END: restore filter edges ──
   increment = parseFloat(localStorage.getItem("step")) || 1000; // HB9VQQ: guard NaN when step not saved
   const c = parseInt(localStorage.getItem("colorIndex")) || 9;
   document.getElementById("colormap").value = c;

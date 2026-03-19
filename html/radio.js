@@ -892,6 +892,8 @@
       saveSettings();
   // Update filter edge inputs to sensible defaults for this mode
   setFilterEdgesForMode(selected_mode);
+  // [HB9VQQ] Phase 4b: notify RMNoise of mode change so auto-bypass/resume fires
+  if (typeof window.rmNoise_updateModeSupport === 'function') window.rmNoise_updateModeSupport(selected_mode);
   }
 
     function selectMode(mode) {
@@ -900,6 +902,8 @@
         ws.send("M:"+mode);
       setFilterEdgesForMode(mode);
       saveSettings();
+      // [HB9VQQ] Phase 4b: notify RMNoise of mode change so auto-bypass/resume fires
+      if (typeof window.rmNoise_updateModeSupport === 'function') window.rmNoise_updateModeSupport(mode);
     }
 
     // Set filter input values according to mode defaults

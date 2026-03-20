@@ -160,12 +160,21 @@
         const lowEl = document.getElementById('filterLowInput');
         const highEl = document.getElementById('filterHighInput');
         if (!lowEl || !highEl) return;
-        const low = parseFloat(lowEl.value);
-        const high = parseFloat(highEl.value);
+        let low = parseFloat(lowEl.value);
+        let high = parseFloat(highEl.value);
         if (isNaN(low) || isNaN(high)) {
           console.warn('Invalid filter edge values', lowEl.value, highEl.value);
           return;
         }
+        // ── HB9VQQ BEGIN: clamp AM filter to ±6000 Hz (ka9q-radio hard limit) ──
+        const mode = (document.getElementById('mode') && document.getElementById('mode').value || '').toLowerCase();
+        if (mode === 'am' || mode === 'sam') {
+          low  = Math.max(-6000, Math.min(0, low));
+          high = Math.min(6000, Math.max(0, high));
+          lowEl.value  = low;
+          highEl.value = high;
+        }
+        // ── HB9VQQ END: clamp AM filter ──
         if (ws && ws.readyState === WebSocket.OPEN) {
           try {
             ws.send('e:' + low.toString() + ':' + high.toString());
@@ -892,8 +901,6 @@
       saveSettings();
   // Update filter edge inputs to sensible defaults for this mode
   setFilterEdgesForMode(selected_mode);
-  // [HB9VQQ] Phase 4b: notify RMNoise of mode change so auto-bypass/resume fires
-  if (typeof window.rmNoise_updateModeSupport === 'function') window.rmNoise_updateModeSupport(selected_mode);
   }
 
     function selectMode(mode) {
@@ -902,8 +909,6 @@
         ws.send("M:"+mode);
       setFilterEdgesForMode(mode);
       saveSettings();
-      // [HB9VQQ] Phase 4b: notify RMNoise of mode change so auto-bypass/resume fires
-      if (typeof window.rmNoise_updateModeSupport === 'function') window.rmNoise_updateModeSupport(mode);
     }
 
     // Set filter input values according to mode defaults

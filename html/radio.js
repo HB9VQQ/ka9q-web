@@ -173,8 +173,22 @@
           high = Math.min(6000, Math.max(0, high));
           lowEl.value  = low;
           highEl.value = high;
+        } else if (mode === 'lsb') {
+          // LSB: both values must be negative, low < high < 0
+          low  = Math.max(-6000, Math.min(-1, low));
+          high = Math.max(-6000, Math.min(-1, high));
+          if (low > high) { const t = low; low = high; high = t; } // ensure low < high
+          lowEl.value  = low;
+          highEl.value = high;
+        } else if (mode === 'usb') {
+          // USB: both values must be positive, 0 < low < high
+          low  = Math.max(1, Math.min(6000, low));
+          high = Math.max(1, Math.min(6000, high));
+          if (low > high) { const t = low; low = high; high = t; } // ensure low < high
+          lowEl.value  = low;
+          highEl.value = high;
         }
-        // ── HB9VQQ END: clamp AM filter ──
+        // ── HB9VQQ END: clamp AM/SSB filter ──
         if (ws && ws.readyState === WebSocket.OPEN) {
           try {
             ws.send('e:' + low.toString() + ':' + high.toString());

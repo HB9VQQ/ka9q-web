@@ -191,7 +191,7 @@ async def telnet_reader(args: argparse.Namespace) -> None:
 
             buf = ''
             while True:
-                data = await reader.read(4096)
+                data = await asyncio.wait_for(reader.read(4096), timeout=300)
                 if not data:
                     break
                 buf += data.decode('utf-8', errors='replace')

@@ -408,6 +408,14 @@ onion_connection_status websocket_cb(void *data, onion_websocket * ws,
             }
           }
           //check_frequency(sp);
+        } else if(strcmp(token,"SIZE")==0) {
+          int table_size = sizeof(zoom_table) / sizeof(zoom_table[0]);
+          char response[16];
+          snprintf(response, sizeof(response), "ZSIZE:%d", table_size);
+          pthread_mutex_lock(&sp->ws_mutex);
+          onion_websocket_set_opcode(sp->ws, OWS_TEXT);
+          onion_websocket_write(sp->ws, response, strlen(response));
+          pthread_mutex_unlock(&sp->ws_mutex);
         } else {
           char *end_ptr;
           long int zoom_level = strtol(&tmp[2],&end_ptr,10);
@@ -615,7 +623,7 @@ static void *audio_thread(void *arg) {
     pthread_mutex_lock(&output_dest_socket_mutex);
     while(Channel.output.dest_socket.sa_family == 0)
         pthread_cond_wait(&output_dest_socket_cond, &output_dest_socket_mutex);
-    Input_fd = listen_mcast(NULL,&Channel.output.dest_socket,NULL);
+    Input_fd = listen_mcast(&Channel.output.dest_socket,NULL);
     pthread_mutex_unlock(&output_dest_socket_mutex);
   }
 
@@ -678,7 +686,7 @@ int init_connections(const char *multicast_group) {
   pthread_mutex_init(&ctl_mutex,NULL);
 
   resolve_mcast(multicast_group,&Metadata_dest_socket,DEFAULT_STAT_PORT,iface,sizeof(iface),0);
-  Status_fd = listen_mcast(NULL,&Metadata_dest_socket,iface);
+  Status_fd = listen_mcast(&Metadata_dest_socket,iface);
   if(Status_fd == -1){
     fprintf(stderr,"Can't listen to mcast status %s\n",multicast_group);
     return(EX_IOERR);

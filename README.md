@@ -2,7 +2,7 @@
 
 **Fork by:** Roland, HB9VQQ  
 **Upstream:** https://github.com/scottnewell/ka9q-web  
-**Live instances:** https://rx888.hb9vqq.ch:8081 · https://rx888.hb9vqq.ch:8082
+**Live instances:** https://rx888.hb9vqq.ch:8081 · https://rx888.hb9vqq.ch:8082 · https://rx888.hb9vqq.ch:8083
 
 ---
 
@@ -28,6 +28,11 @@
 * **Auto-bypass** — automatically bypasses when switching to AM/FM/NFM (unsupported modes); resumes on return to SSB/CW
 * **3 kHz send-path LPF** — removes SDR noise above voice band before AI processing, preventing aliasing artifacts
 * Requires HTTPS for AudioWorklet (nginx + Let's Encrypt setup documented below)
+
+### C source changes (`ka9q-web.c`)
+
+* **`listen_mcast()` 2-arg adaptation** — upstream scottnewell/ka9q-radio uses a 2-argument `listen_mcast()` signature; the first `NULL` source-specific argument is removed from both call sites
+* **`Z:SIZE` zoom table handler** — responds to `Z:SIZE` WebSocket command with `ZSIZE:<n>`, enabling the JS zoom slider to set its max range dynamically from the server's zoom table
 
 ### Dark theme UI (`radio.html`)
 
@@ -90,19 +95,109 @@
 
 ## Deployment
 
-### Requirements
+### Quick start
 
-* **[ka9q-web](https://github.com/scottnewell/ka9q-web)** — must be installed (this fork replaces the HTML/JS files)
-* **[ka9q-radio](https://github.com/ka9q/ka9q-radio)** — must be installed and running
-* Python 3.10+: `sudo apt install python3-websockets python3-aiohttp`
-* nginx + certbot for HTTPS (required for RMNoise AudioWorklet path)
+This gets you the dark theme UI with spectrum, waterfall, S-meter, and zoom slider working. Optional features (DX cluster, RMNoise, BCL overlay, compass) are set up separately below.
+
+```bash
+# 1. Install build dependencies
+sudo apt install libonion-dev libbsd-dev
+
+# 2. Clone this fork and the required build headers
+git clone https://github.com/HB9VQQ/ka9q-web ~/ka9q-web
+git clone https://github.com/scottnewell/ka9q-radio ~/ka9q-radio-scottnewell
+ln -s ~/ka9q-radio-scottnewell ~/ka9q-radio
+
+# 3. Build
+cd ~/ka9q-web
+make
+
+# 4. Back up the existing binary (in case you need to roll back)
+sudo cp /usr/local/sbin/ka9q-web /usr/local/sbin/ka9q-web.stock
+sudo cp -r /usr/local/share/ka9q-web/html /usr/local/share/ka9q-web/html.stock
+
+# 5. Install (replaces both the binary and all HTML/JS files)
+sudo make install
+
+# 6. Restart ka9q-web
+kill $(pgrep -f "ka9q-web")
+# wsprdaemon or systemd will respawn it automatically
+```
+
+To roll back to the stock binary at any time:
+
+```bash
+sudo cp /usr/local/sbin/ka9q-web.stock /usr/local/sbin/ka9q-web
+sudo cp /usr/local/share/ka9q-web/html.stock/* /usr/local/share/ka9q-web/html/
+kill $(pgrep -f "ka9q-web")
+```
+
+> **What this replaces:** `sudo make install` overwrites `/usr/local/sbin/ka9q-web` (the binary) and everything in `/usr/local/share/ka9q-web/html/` (the UI). The stock scottnewell or wa2n-code binary is replaced. The running radiod is not affected.
+
+> **Why two ka9q-radio repos?** The running radiod (from [ka9q/ka9q-radio](https://github.com/ka9q/ka9q-radio) or wsprdaemon's managed copy) uses newer headers that are incompatible with the upstream scottnewell `ka9q-web.c`. The [scottnewell/ka9q-radio](https://github.com/scottnewell/ka9q-radio) fork has the matching headers. The compiled binary works correctly with any radiod version — the TLV status protocol is backward-compatible.
+
+### wsprdaemon integration
+
+If you run [wsprdaemon](https://github.com/rrobinett/wsprdaemon), it manages its own copy of ka9q-web and will overwrite your fork on restart unless you prevent it.
+
+**Comment out these lines** in `wsprdaemon.conf`:
+
+```bash
+# KA9Q_WEB_GIT_URL="https://github.com/HB9VQQ/ka9q-web"
+# KA9Q_WEB_COMMIT="..."
+```
+
+With both lines commented out, WD will still respawn the ka9q-web process if it dies, but won't try to clone, build, or replace the binary.
+
+If WD has multiple radiod instances, you may also need:
+
+```bash
+KA9Q_WEB_DNS="hf_0-status.local"     # tells ka9q-web which radiod to connect to
+```
+
+### Customizing for your station
+
+Several files contain HB9VQQ-specific URLs and settings. Edit these for your own station:
+
+**`html/station-config.js`** — antenna names, port assignments, rotator URL:
+
+```javascript
+ports: {
+    8081: { name: 'My omni antenna', type: 'omni' },
+    8082: { name: 'My beam', type: 'directional',
+            rotatorUrl: 'http://192.168.1.x/PstRotatorAz.htm' }
+}
+```
+
+**`html/hb9vqq-init.js`** — solar indices bar data source URL (defaults to `dxmap.hb9vqq.ch`). If you don't have your own solar data endpoint, the bar will show but with no data.
+
+**`dx-cluster-bridge.service`** — DX cluster host, your callsign, ports:
+
+```ini
+ExecStart=/usr/local/bin/dx-cluster-bridge.py \
+    --cluster-host your-cluster.example.com \
+    --callsign YOURCALL \
+    --cluster-port 7300 \
+    --ws-port 9373 \
+    --max-age 30
+```
+
+### Prerequisites
+
+* **[ka9q-radio](https://github.com/ka9q/ka9q-radio)** radiod must be installed and running
+* **[scottnewell/ka9q-radio](https://github.com/scottnewell/ka9q-radio)** — build headers (cloned during Quick Start)
+* **libonion-dev**, **libbsd-dev** — C build dependencies
+* Python 3.10+ (for optional services): `sudo apt install python3-websockets python3-aiohttp`
+* nginx + certbot (only needed for RMNoise HTTPS AudioWorklet path)
 
 ### Files
 
 | File | Location |
 | --- | --- |
+| `ka9q-web.c` | compiled → `/usr/local/sbin/ka9q-web` |
 | `html/radio.html` | `/usr/local/share/ka9q-web/html/` |
 | `html/radio.js` | `/usr/local/share/ka9q-web/html/` |
+| `html/spectrum.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/compass.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/station-config.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/rmnoise.js` | `/usr/local/share/ka9q-web/html/` |
@@ -112,7 +207,6 @@
 | `html/hb9vqq-init.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/dx-cluster.js` | `/usr/local/share/ka9q-web/html/` |
 | `html/bcl-overlay.js` | `/usr/local/share/ka9q-web/html/` |
-| `html/spectrum.js` | `/usr/local/share/ka9q-web/html/` |
 | `dx-cluster-bridge.py` | `/usr/local/bin/` |
 | `dx-cluster-bridge.service` | `/etc/systemd/system/` |
 | `rmnoise-proxy.py` | `/usr/local/bin/` |
@@ -121,30 +215,34 @@
 | `rotator-proxy.service` | `/etc/systemd/system/` |
 | `nginx/rx888.conf` | `/etc/nginx/sites-available/` |
 
-### Deploying HTML files
+### Updating after initial install
+
+After the initial build, HTML/JS-only changes (most updates) can be deployed without restarting:
 
 ```bash
+cd ~/ka9q-web
+git pull
 sudo cp html/* /usr/local/share/ka9q-web/html/
-sudo kill -HUP $(pgrep -f "ka9q-web")
 ```
 
-### Compass / rotator proxy setup
+If `ka9q-web.c` changed, rebuild and restart:
+
+```bash
+cd ~/ka9q-web
+git pull
+rm -f ka9q-web.o ka9q-web
+make
+sudo make install
+kill $(pgrep -f "ka9q-web")
+```
+
+### Optional: Compass / rotator proxy
 
 ```bash
 sudo cp rotator-proxy.py /usr/local/bin/
 sudo cp rotator-proxy.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rotator-proxy
-```
-
-Edit `station-config.js` to set your rotator URL and port types:
-
-```javascript
-ports: {
-    8081: { name: 'Your omni antenna', type: 'omni' },
-    8082: { name: 'Your beam antenna', type: 'directional',
-            rotatorUrl: 'http://192.168.1.x/PstRotatorAz.htm' }
-}
 ```
 
 Then patch nginx to proxy the rotator API:
@@ -154,7 +252,7 @@ sudo python3 patch_nginx_rotator.py
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### RMNoise setup (optional)
+### Optional: RMNoise AI denoising
 
 RMNoise requires HTTPS. Set up nginx as a reverse proxy with Let's Encrypt:
 
@@ -171,7 +269,7 @@ sudo systemctl enable --now rmnoise-proxy
 
 Users must have their own [rmnoise.com](https://rmnoise.com/users2/register) account.
 
-### BCL station database setup
+### Optional: BCL station database
 
 ```bash
 sudo cp bcl_to_json.py /usr/local/bin/
@@ -181,7 +279,7 @@ echo '0 3 29 3  * root python3 /usr/local/bin/bcl_to_json.py
 0 3 29 10 * root python3 /usr/local/bin/bcl_to_json.py' | sudo tee /etc/cron.d/eibi-update
 ```
 
-### Bridge service
+### Optional: DX cluster bridge
 
 ```bash
 sudo cp dx-cluster-bridge.py /usr/local/bin/
@@ -190,17 +288,6 @@ sudo cp dx-cluster-bridge.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now dx-cluster-bridge
 sudo ufw allow 9373/tcp comment "DX cluster WS bridge"
-```
-
-Edit `dx-cluster-bridge.service` and set your values:
-
-```ini
-ExecStart=/usr/local/bin/dx-cluster-bridge.py \
-    --cluster-host your-cluster.example.com \
-    --callsign N0CALL \
-    --cluster-port 7300 \
-    --ws-port 9373 \
-    --max-age 30
 ```
 
 ---

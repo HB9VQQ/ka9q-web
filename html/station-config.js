@@ -21,8 +21,8 @@ const STATION_CONFIG = {
     // type: 'omni'        — omnidirectional, no rotator
     // type: 'directional' — beam antenna with rotator
     ports: {
-        8081: { name: 'N4CY Loop',          type: 'omni',        wanPort: 8081 },
-        9081: { name: 'N4CY Loop',          type: 'omni',        wanPort: 8081 },
+        8081: { name: 'Wellgood Loop',          type: 'omni',        wanPort: 8081 },
+        9081: { name: 'Wellgood Loop',          type: 'omni',        wanPort: 8081 },
         8082: { name: 'Spiderbeam HD Yagi', type: 'directional', wanPort: 8082,
                 rotatorUrl: 'http://192.168.1.44/PstRotatorAz.htm' },
         9082: { name: 'Spiderbeam HD Yagi', type: 'directional', wanPort: 8082,
